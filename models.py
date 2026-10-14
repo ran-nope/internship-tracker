@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date
+from sqlalchemy import Column, Integer, String, Date, Text, ForeignKey
 from database import Base
 
 
@@ -19,3 +19,7 @@ class InternshipDB(Base):
     status = Column(String, nullable=False)
     application_date = Column(Date, nullable=False)
     user_id = Column(Integer, nullable=False)
+
+    location = Column(String, nullable=True)
+    job_url = Column(String, nullable=True)
+    notes = Column(Text, nullable=True)

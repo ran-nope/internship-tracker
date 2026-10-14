@@ -291,4 +291,168 @@ button:hover {
   cursor: pointer;
   margin-top: 20px;
  }
+ .header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logout {
+  background: #6b7280;
+}
+
+.application-date {
+  font-size: 14px;
+}
+
+@media (max-width: 600px) {
+  .header-top {
+    align-items: flex-start;
+    gap: 15px;
+  }
+}
+/* New internship fields */
+
+.form textarea {
+  flex: 1 1 100%;
+  width: 100%;
+  padding: 12px;
+  font: inherit;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  resize: vertical;
+}
+
+.form textarea:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+
+.internship-details {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.internship-notes {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f5f7fb;
+  border-radius: 8px;
+}
+
+.internship-notes p {
+  margin-top: 6px;
+  white-space: pre-wrap;
+}
+
+.internship-card a {
+  color: #4f46e5;
+  text-decoration: none;
+}
+
+.internship-card a:hover {
+  text-decoration: underline;
+}
+
+/* API messages */
+
+.message {
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.error {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.success {
+  color: #166534;
+  background: #dcfce7;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .form textarea {
+    width: 100%;
+  }
+}
+}
+/* New internship fields */
+
+.form textarea {
+  flex: 1 1 100%;
+  width: 100%;
+  padding: 12px;
+  font: inherit;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  resize: vertical;
+}
+
+.form textarea:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+
+.internship-details {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.internship-notes {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f5f7fb;
+  border-radius: 8px;
+}
+
+.internship-notes p {
+  margin-top: 6px;
+  white-space: pre-wrap;
+}
+
+.internship-card a {
+  color: #4f46e5;
+  text-decoration: none;
+}
+
+.internship-card a:hover {
+  text-decoration: underline;
+}
+
+/* API messages */
+
+.message {
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.error {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.success {
+  color: #166534;
+  background: #dcfce7;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .form textarea {
+    width: 100%;
+  }
 }

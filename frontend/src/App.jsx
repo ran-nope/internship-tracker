@@ -1,291 +1,381 @@
 import { useEffect, useState } from "react"
 import "./App.css"
 
-function App() {
+const API_URL =
+  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 
+const STATUSES = [
+  "Applied",
+  "Assessment",
+  "Interview",
+  "Offer",
+  "Selected",
+  "Rejected",
+  "Withdrawn",
+]
+
+const EMPTY_FORM = {
+  company: "",
+  role: "",
+  status: "Applied",
+  application_date: "",
+  location: "",
+  job_url: "",
+  notes: "",
+}
+
+
+// ---------------- API HELPER ----------------
+
+async function apiRequest(path, options = {}, token = null) {
+  const headers = {
+    ...(options.body ? { "Content-Type": "application/json" } : {}),
+    ...(options.headers || {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers,
+  })
+
+  const data = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    if (response.status === 401 && token) {
+      localStorage.removeItem("token")
+      localStorage.removeItem("username")
+      window.location.reload()
+    }
+
+    throw new Error(
+      data.detail || data.error || `Request failed (${response.status})`
+    )
+  }
+
+  return data
+}
+
+
+// ---------------- MAIN APP ----------------
+
+function App() {
   const [token, setToken] = useState(
     localStorage.getItem("token")
   )
 
   const [isLogin, setIsLogin] = useState(true)
-
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
 
   const [internships, setInternships] = useState([])
-
-  const [company, setCompany] = useState("")
-  const [role, setRole] = useState("")
-  const [status, setStatus] = useState("Applied")
-  const [applicationDate, setApplicationDate] = useState("")
+  const [form, setForm] = useState({ ...EMPTY_FORM })
   const [editingId, setEditingId] = useState(null)
 
   const [search, setSearch] = useState("")
   const [filterStatus, setFilterStatus] = useState("All")
 
-
-  // ---------------- LOGIN / SIGNUP ----------------
-
-  const handleSubmit = () => {
-
-    if (!username || !password) {
-      alert("Please enter username and password")
-      return
-    }
-
-    const endpoint = isLogin ? "login" : "signup"
-
-    fetch(`http://127.0.0.1:8000/${endpoint}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        username,
-        password
-      })
-    })
-      .then(response => response.json())
-      .then(data => {
-
-        if (data.error) {
-          alert(data.error)
-          return
-        }
-
-        alert(data.message)
-
-        if (isLogin) {
-
-          localStorage.setItem(
-            "token",
-            data.access_token
-          )
-
-          localStorage.setItem(
-            "username",
-            data.username
-          )
-
-          setToken(data.access_token)
-        }
-
-      })
-  }
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
 
 
-  // ---------------- GET INTERNSHIPS ----------------
+  // ---------------- LOAD INTERNSHIPS ----------------
 
   useEffect(() => {
-
     if (!token) return
 
-    fetch(
-      "http://127.0.0.1:8000/internships",
-      {
-        headers: {
-          "Authorization": `Bearer ${token}`
+    let cancelled = false
+
+    async function loadInternships() {
+      setLoading(true)
+      setError("")
+
+      try {
+        const data = await apiRequest(
+          "/internships",
+          {},
+          token
+        )
+
+        if (!cancelled) {
+          setInternships(data)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message)
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
         }
       }
-    )
-      .then(response => response.json())
-      .then(data => setInternships(data))
+    }
 
+    loadInternships()
+
+    return () => {
+      cancelled = true
+    }
   }, [token])
 
 
-  // ---------------- ADD ----------------
+  // ---------------- LOGIN / SIGNUP ----------------
 
-  const addInternship = () => {
+  async function handleSubmit(event) {
+    event.preventDefault()
 
-    if (!company || !role || !applicationDate) {
-      alert("Please fill all fields")
+    setError("")
+    setSuccess("")
+
+    if (!username.trim() || !password) {
+      setError("Please enter your username and password.")
       return
     }
 
-    fetch(
-      "http://127.0.0.1:8000/internships",
-      {
+    setLoading(true)
+
+    try {
+      const endpoint = isLogin ? "/login" : "/signup"
+
+      const data = await apiRequest(endpoint, {
         method: "POST",
-
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-
         body: JSON.stringify({
-          company,
-          role,
-          status,
-          application_date: applicationDate
-        })
-      }
-    )
-      .then(response => response.json())
-      .then(data => {
+          username: username.trim(),
+          password,
+        }),
+      })
 
-        setInternships([
-          ...internships,
-          data
+      if (isLogin) {
+        localStorage.setItem("token", data.access_token)
+        localStorage.setItem("username", data.username)
+
+        setToken(data.access_token)
+        setPassword("")
+        setSuccess("Login successful!")
+      } else {
+        setSuccess("Account created! You can now log in.")
+        setIsLogin(true)
+        setPassword("")
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+
+  // ---------------- FORM HANDLING ----------------
+
+  function updateField(event) {
+    const { name, value } = event.target
+
+    setForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }))
+  }
+
+  function clearForm() {
+    setForm({ ...EMPTY_FORM })
+    setEditingId(null)
+  }
+
+
+  // ---------------- ADD / UPDATE ----------------
+
+  async function saveInternship(event) {
+    event.preventDefault()
+
+    setError("")
+    setSuccess("")
+
+    if (
+      !form.company.trim() ||
+      !form.role.trim() ||
+      !form.application_date
+    ) {
+      setError("Company, role, and application date are required.")
+      return
+    }
+
+    if (
+      form.job_url.trim() &&
+      !/^https?:\/\/\S+/i.test(form.job_url.trim())
+    ) {
+      setError("Job URL must start with http:// or https://")
+      return
+    }
+
+    const payload = {
+      ...form,
+      company: form.company.trim(),
+      role: form.role.trim(),
+      location: form.location.trim() || null,
+      job_url: form.job_url.trim() || null,
+      notes: form.notes.trim() || null,
+    }
+
+    setSaving(true)
+
+    try {
+      if (editingId !== null) {
+        const updated = await apiRequest(
+          `/internships/${editingId}`,
+          {
+            method: "PUT",
+            body: JSON.stringify(payload),
+          },
+          token
+        )
+
+        setInternships((previous) =>
+          previous.map((item) =>
+            item.id === editingId ? updated : item
+          )
+        )
+
+        setSuccess("Internship updated successfully!")
+      } else {
+        const created = await apiRequest(
+          "/internships",
+          {
+            method: "POST",
+            body: JSON.stringify(payload),
+          },
+          token
+        )
+
+        setInternships((previous) => [
+          created,
+          ...previous,
         ])
 
-        clearForm()
-
-      })
-  }
-
-
-  // ---------------- UPDATE ----------------
-
-  const updateInternship = () => {
-
-    fetch(
-      `http://127.0.0.1:8000/internships/${editingId}`,
-      {
-        method: "PUT",
-
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-
-        body: JSON.stringify({
-          company,
-          role,
-          status,
-          application_date: applicationDate
-        })
+        setSuccess("Internship added successfully!")
       }
-    )
-      .then(response => response.json())
-      .then(data => {
 
-        setInternships(
-          internships.map(internship =>
-            internship.id === editingId
-              ? data
-              : internship
-          )
-        )
-
-        clearForm()
-
-      })
-  }
-
-
-  // ---------------- DELETE ----------------
-
-  const deleteInternship = (id) => {
-
-    fetch(
-      `http://127.0.0.1:8000/internships/${id}`,
-      {
-        method: "DELETE",
-
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
-      }
-    )
-      .then(response => response.json())
-      .then(() => {
-
-        setInternships(
-          internships.filter(
-            internship => internship.id !== id
-          )
-        )
-
-      })
+      clearForm()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
 
   // ---------------- EDIT ----------------
 
-  const editInternship = (internship) => {
+  function editInternship(internship) {
+    setForm({
+      company: internship.company || "",
+      role: internship.role || "",
+      status: internship.status || "Applied",
+      application_date: internship.application_date || "",
+      location: internship.location || "",
+      job_url: internship.job_url || "",
+      notes: internship.notes || "",
+    })
 
-    setCompany(internship.company)
-    setRole(internship.role)
-    setStatus(internship.status)
-    setApplicationDate(internship.application_date)
     setEditingId(internship.id)
+    setError("")
+    setSuccess("")
 
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    })
   }
 
 
-  // ---------------- CLEAR FORM ----------------
+  // ---------------- DELETE ----------------
 
-  const clearForm = () => {
+  async function deleteInternship(id) {
+    if (!window.confirm("Delete this internship permanently?")) {
+      return
+    }
 
-    setCompany("")
-    setRole("")
-    setStatus("Applied")
-    setApplicationDate("")
-    setEditingId(null)
+    setError("")
+    setSuccess("")
 
+    try {
+      await apiRequest(
+        `/internships/${id}`,
+        { method: "DELETE" },
+        token
+      )
+
+      setInternships((previous) =>
+        previous.filter((item) => item.id !== id)
+      )
+
+      if (editingId === id) {
+        clearForm()
+      }
+
+      setSuccess("Internship deleted successfully!")
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
 
   // ---------------- LOGOUT ----------------
 
-  const logout = () => {
-
+  function logout() {
     localStorage.removeItem("token")
     localStorage.removeItem("username")
 
     setToken(null)
-
+    setInternships([])
+    clearForm()
+    setError("")
+    setSuccess("")
   }
 
 
-  // ---------------- DASHBOARD STATS ----------------
+  // ---------------- DASHBOARD STATISTICS ----------------
 
-  const totalInternships = internships.length
+  const total = internships.length
 
-  const appliedCount = internships.filter(
-    internship => internship.status === "Applied"
+  const applied = internships.filter(
+    (item) => item.status === "Applied"
   ).length
 
-  const interviewCount = internships.filter(
-    internship => internship.status === "Interview"
+  const interviews = internships.filter(
+    (item) => item.status === "Interview"
   ).length
 
-  const selectedCount = internships.filter(
-    internship => internship.status === "Selected"
+  const selected = internships.filter(
+    (item) => item.status === "Selected"
   ).length
 
-  const rejectedCount = internships.filter(
-    internship => internship.status === "Rejected"
+  const rejected = internships.filter(
+    (item) => item.status === "Rejected"
   ).length
 
-  const selectionRate =
-    totalInternships === 0
-      ? 0
-      : ((selectedCount / totalInternships) * 100).toFixed(1)
+  const selectionRate = total
+    ? ((selected / total) * 100).toFixed(1)
+    : "0.0"
 
 
-  // ---------------- SEARCH + FILTER ----------------
+  // ---------------- SEARCH / FILTER ----------------
 
-  const filteredInternships = internships.filter(
-    internship => {
+  const filteredInternships = internships.filter((item) => {
+    const query = search.toLowerCase()
 
-      const matchesSearch =
-        internship.company
-          .toLowerCase()
-          .includes(search.toLowerCase()) ||
-        internship.role
-          .toLowerCase()
-          .includes(search.toLowerCase())
+    const matchesSearch =
+      item.company.toLowerCase().includes(query) ||
+      item.role.toLowerCase().includes(query) ||
+      (item.location || "").toLowerCase().includes(query)
 
-      const matchesStatus =
-        filterStatus === "All" ||
-        internship.status === filterStatus
+    const matchesStatus =
+      filterStatus === "All" ||
+      item.status === filterStatus
 
-      return matchesSearch && matchesStatus
-
-    }
-  )
+    return matchesSearch && matchesStatus
+  })
 
 
   // ==================================================
@@ -293,317 +383,328 @@ function App() {
   // ==================================================
 
   if (!token) {
-
     return (
       <div className="auth-container">
-
-        <div className="auth-card">
-
+        <form className="auth-card" onSubmit={handleSubmit}>
           <h1>Internship Tracker</h1>
 
+          <p>
+            Track applications. Manage opportunities.
+          </p>
+
           <h2>
-            {isLogin ? "Login" : "Create Account"}
+            {isLogin ? "Welcome Back" : "Create Account"}
           </h2>
+
+          {error && <div className="message error">{error}</div>}
+          {success && <div className="message success">{success}</div>}
 
           <input
             type="text"
             placeholder="Username"
+            autoComplete="username"
             value={username}
-            onChange={e => setUsername(e.target.value)}
+            onChange={(event) => setUsername(event.target.value)}
+            required
           />
 
           <input
             type="password"
             placeholder="Password"
+            autoComplete={isLogin ? "current-password" : "new-password"}
             value={password}
-            onChange={e => setPassword(e.target.value)}
+            onChange={(event) => setPassword(event.target.value)}
+            required
           />
 
-          <button onClick={handleSubmit}>
-            {isLogin ? "Login" : "Sign Up"}
+          <button type="submit" disabled={loading}>
+            {loading
+              ? "Please wait..."
+              : isLogin
+                ? "Login"
+                : "Sign Up"}
           </button>
 
           <p
             className="switch-auth"
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={() => {
+              setIsLogin((previous) => !previous)
+              setError("")
+              setSuccess("")
+            }}
           >
             {isLogin
               ? "Don't have an account? Sign up"
               : "Already have an account? Login"}
           </p>
-
-        </div>
-
+        </form>
       </div>
     )
   }
 
 
   // ==================================================
-  // INTERNSHIP DASHBOARD
+  // DASHBOARD
   // ==================================================
 
   return (
     <div className="app">
-
       <header className="header">
-
         <div className="header-top">
-
           <div>
-
             <h1>Internship Tracker</h1>
-
             <p>
               Welcome, {localStorage.getItem("username")}
             </p>
-
           </div>
 
-          <button
-            className="logout"
-            onClick={logout}
-          >
+          <button className="logout" onClick={logout}>
             Logout
           </button>
-
         </div>
-
       </header>
 
+      {error && (
+        <div className="message error">
+          {error}
+        </div>
+      )}
 
-      {/* Dashboard */}
+      {success && (
+        <div className="message success">
+          {success}
+        </div>
+      )}
+
+
+      {/* DASHBOARD */}
 
       <section className="dashboard">
-
         <div className="stat-card">
-          <h3>Total</h3>
-          <p>{totalInternships}</p>
+          <h3>Total Applications</h3>
+          <p>{total}</p>
         </div>
 
         <div className="stat-card">
           <h3>Applied</h3>
-          <p>{appliedCount}</p>
+          <p>{applied}</p>
         </div>
 
         <div className="stat-card">
-          <h3>Interview</h3>
-          <p>{interviewCount}</p>
+          <h3>Interviews</h3>
+          <p>{interviews}</p>
         </div>
 
         <div className="stat-card">
           <h3>Selected</h3>
-          <p>{selectedCount}</p>
+          <p>{selected}</p>
         </div>
 
         <div className="stat-card">
           <h3>Rejected</h3>
-          <p>{rejectedCount}</p>
+          <p>{rejected}</p>
         </div>
 
         <div className="stat-card">
           <h3>Selection Rate</h3>
           <p>{selectionRate}%</p>
         </div>
-
       </section>
 
 
-      {/* Form */}
+      {/* ADD / EDIT FORM */}
 
       <section className="form-section">
-
         <h2>
-          {editingId
+          {editingId !== null
             ? "Edit Internship"
             : "Add Internship"}
         </h2>
 
-        <div className="form">
-
+        <form className="form" onSubmit={saveInternship}>
           <input
-            type="text"
-            placeholder="Company"
-            value={company}
-            onChange={e => setCompany(e.target.value)}
+            name="company"
+            placeholder="Company *"
+            value={form.company}
+            onChange={updateField}
+            maxLength={200}
+            required
           />
 
           <input
-            type="text"
-            placeholder="Role"
-            value={role}
-            onChange={e => setRole(e.target.value)}
+            name="role"
+            placeholder="Role *"
+            value={form.role}
+            onChange={updateField}
+            maxLength={200}
+            required
           />
 
           <input
+            name="application_date"
             type="date"
-            value={applicationDate}
-            onChange={e =>
-              setApplicationDate(e.target.value)
-            }
+            value={form.application_date}
+            onChange={updateField}
+            required
           />
 
           <select
-            value={status}
-            onChange={e =>
-              setStatus(e.target.value)
-            }
+            name="status"
+            value={form.status}
+            onChange={updateField}
           >
-
-            <option>Applied</option>
-            <option>Interview</option>
-            <option>Rejected</option>
-            <option>Selected</option>
-
+            {STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
           </select>
 
+          <input
+            name="location"
+            placeholder="Location (e.g. Bengaluru)"
+            value={form.location}
+            onChange={updateField}
+          />
 
-          {editingId ? (
+          <input
+            name="job_url"
+            type="url"
+            placeholder="Job application URL"
+            value={form.job_url}
+            onChange={updateField}
+          />
 
-            <>
-              <button onClick={updateInternship}>
-                Update
-              </button>
+          <textarea
+            name="notes"
+            placeholder="Notes (skills, deadlines, contacts...)"
+            value={form.notes}
+            onChange={updateField}
+            rows={3}
+          />
 
-              <button
-                className="cancel"
-                onClick={clearForm}
-              >
-                Cancel
-              </button>
-            </>
+          <button type="submit" disabled={saving}>
+            {saving
+              ? "Saving..."
+              : editingId !== null
+                ? "Update Internship"
+                : "Add Internship"}
+          </button>
 
-          ) : (
-
-            <button onClick={addInternship}>
-              Add Internship
+          {editingId !== null && (
+            <button
+              type="button"
+              className="cancel"
+              onClick={clearForm}
+            >
+              Cancel
             </button>
-
           )}
-
-        </div>
-
+        </form>
       </section>
 
 
-      {/* Internship List */}
+      {/* INTERNSHIP LIST */}
 
       <section className="internships-section">
-
         <h2>My Internships</h2>
 
-
         <div className="filters">
-
           <input
-            type="text"
-            placeholder="Search company or role..."
+            type="search"
+            placeholder="Search company, role, or location..."
             value={search}
-            onChange={e =>
-              setSearch(e.target.value)
-            }
+            onChange={(event) => setSearch(event.target.value)}
           />
 
           <select
             value={filterStatus}
-            onChange={e =>
-              setFilterStatus(e.target.value)
-            }
+            onChange={(event) => setFilterStatus(event.target.value)}
           >
+            <option value="All">All Statuses</option>
 
-            <option value="All">
-              All Statuses
-            </option>
-
-            <option value="Applied">
-              Applied
-            </option>
-
-            <option value="Interview">
-              Interview
-            </option>
-
-            <option value="Rejected">
-              Rejected
-            </option>
-
-            <option value="Selected">
-              Selected
-            </option>
-
+            {STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
           </select>
-
         </div>
 
-
-        <div className="internship-list">
-
-          {filteredInternships.map(
-            internship => (
-
-              <div
+        {loading ? (
+          <p>Loading internships...</p>
+        ) : filteredInternships.length === 0 ? (
+          <p>No internships found. Add one to get started!</p>
+        ) : (
+          <div className="internship-list">
+            {filteredInternships.map((internship) => (
+              <article
                 className="internship-card"
                 key={internship.id}
               >
-
-                <div>
-
-                  <h3>
-                    {internship.company}
-                  </h3>
-
-                  <p>
-                    {internship.role}
-                  </p>
+                <div className="internship-details">
+                  <h3>{internship.company}</h3>
+                  <p>{internship.role}</p>
 
                   <span className="status">
                     {internship.status}
                   </span>
 
                   <p className="application-date">
-
                     Applied on:{" "}
-
                     {new Date(
-                      internship.application_date
+                      `${internship.application_date}T00:00:00`
                     ).toLocaleDateString("en-GB")}
-
                   </p>
 
+                  {internship.location && (
+                    <p>
+                      <strong>Location:</strong>{" "}
+                      {internship.location}
+                    </p>
+                  )}
+
+                  {internship.job_url && (
+                    <p>
+                      <strong>Job URL:</strong>{" "}
+                      <a
+                        href={internship.job_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        View application
+                      </a>
+                    </p>
+                  )}
+
+                  {internship.notes && (
+                    <div className="internship-notes">
+                      <strong>Notes:</strong>
+                      <p>{internship.notes}</p>
+                    </div>
+                  )}
                 </div>
 
-
                 <div className="actions">
-
                   <button
                     className="edit"
-                    onClick={() =>
-                      editInternship(internship)
-                    }
+                    onClick={() => editInternship(internship)}
                   >
                     Edit
                   </button>
 
                   <button
                     className="delete"
-                    onClick={() =>
-                      deleteInternship(internship.id)
-                    }
+                    onClick={() => deleteInternship(internship.id)}
                   >
                     Delete
                   </button>
-
                 </div>
-
-              </div>
-
-            )
-          )}
-
-        </div>
-
+              </article>
+            ))}
+          </div>
+        )}
       </section>
-
     </div>
   )
 }
