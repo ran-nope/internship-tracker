@@ -26,24 +26,18 @@ if not SECRET_KEY:
     raise RuntimeError("SECRET_KEY is missing from your .env file")
 
 app = FastAPI(title="Internship Tracker API")
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://internship-tracker-seven-alpha.vercel.app"
+        "http://localhost:5173",
+        "https://internship-tracker-seven-alpha.vercel.app",
+        "https://internship-tracker-git-master-kpc13.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 Base.metadata.create_all(bind=engine)
 
