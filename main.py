@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 import os
-
+from fastapi.middleware.cors import CORSMiddleware
 import bcrypt
 from dotenv import load_dotenv
 from fastapi import FastAPI, Depends, HTTPException
@@ -26,6 +26,16 @@ if not SECRET_KEY:
     raise RuntimeError("SECRET_KEY is missing from your .env file")
 
 app = FastAPI(title="Internship Tracker API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://internship-tracker-seven-alpha.vercel.app"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.add_middleware(
     CORSMiddleware,
