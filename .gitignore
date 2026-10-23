@@ -4,3 +4,10 @@ __pycache__/
 *.pyc
 frontend/node_modules/
 frontend/dist/
+.env.*
+!.env.example
+*.pem
+*.key
+.aws/
+.vercel/
+.venv/

@@ -1,14 +1,15 @@
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
+from urllib.parse import urlsplit
 import os
-from fastapi.middleware.cors import CORSMiddleware
 import bcrypt
 from dotenv import load_dotenv
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from database import engine, Base, SessionLocal
@@ -26,17 +27,27 @@ if not SECRET_KEY:
     raise RuntimeError("SECRET_KEY is missing from your .env file")
 
 app = FastAPI(title="Internship Tracker API")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "https://internship-tracker-seven-alpha.vercel.app",
-        "https://internship-tracker-git-master-kpc13.vercel.app",
+CORS_ORIGINS = list(dict.fromkeys([
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://internship-tracker-seven-alpha.vercel.app",
+    "https://internship-tracker-git-master-kpc13.vercel.app",
+    *[
+        origin.strip().rstrip("/")
+        for origin in os.getenv("CORS_ORIGINS", "").split(",")
+        if origin.strip()
     ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+]))
+for origin in CORS_ORIGINS:
+    parsed_origin = urlsplit(origin)
+    if (
+        parsed_origin.scheme not in {"http", "https"}
+        or not parsed_origin.hostname
+        or parsed_origin.username or parsed_origin.password
+        or parsed_origin.path or parsed_origin.query or parsed_origin.fragment
+        or "*" in origin or any(character.isspace() for character in origin)
+    ):
+        raise RuntimeError("CORS_ORIGINS must contain explicit HTTP(S) origins without paths")
 
 
 Base.metadata.create_all(bind=engine)
@@ -50,6 +61,13 @@ class User(BaseModel):
     username: str = Field(min_length=1, max_length=100)
     password: str = Field(min_length=1, max_length=72)
 
+    @field_validator("password")
+    @classmethod
+    def validate_password_bytes(cls, value: str):
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("Password must be at most 72 UTF-8 bytes")
+        return value
+
 
 class Internship(BaseModel):
     company: str = Field(min_length=1, max_length=200)
@@ -60,6 +78,21 @@ class Internship(BaseModel):
     location: Optional[str] = None
     job_url: Optional[str] = None
     notes: Optional[str] = None
+
+    @field_validator("job_url")
+    @classmethod
+    def validate_job_url(cls, value: Optional[str]):
+        if value is None or not value.strip():
+            return None
+        value = value.strip()
+        try:
+            parsed = urlsplit(value)
+            valid = parsed.scheme in {"http", "https"} and bool(parsed.hostname)
+        except ValueError:
+            valid = False
+        if not valid or any(character.isspace() for character in value):
+            raise ValueError("Job URL must be a valid http:// or https:// URL")
+        return value
 
 
 # ---------------- DATABASE SESSION ----------------
@@ -152,7 +185,13 @@ def signup(user: User, db: Session = Depends(get_db)):
     )
 
     db.add(new_user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        if db.query(UserDB).filter(UserDB.username == username).first():
+            raise HTTPException(status_code=409, detail="Username already exists")
+        raise
     db.refresh(new_user)
 
     return {
@@ -339,3 +378,13 @@ def delete_internship(
     db.commit()
 
     return {"message": "Internship deleted successfully"}
+
+
+# Wrap the entire application so even unhandled server errors have CORS headers.
+app = CORSMiddleware(
+    app=app,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)

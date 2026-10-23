@@ -1,10 +1,7 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import "./App.css"
 
-const API_URL = (
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
-).replace(/\/+$/, "")
-
+import { apiRequest } from "./api"
 
 const STATUSES = [
   "Applied",
@@ -27,44 +24,14 @@ const EMPTY_FORM = {
 }
 
 
-// ---------------- API HELPER ----------------
-
-async function apiRequest(path, options = {}, token = null) {
-  const headers = {
-    ...(options.body ? { "Content-Type": "application/json" } : {}),
-    ...(options.headers || {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  }
-
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  })
-
-  const data = await response.json().catch(() => ({}))
-
-  if (!response.ok) {
-    if (response.status === 401 && token) {
-      localStorage.removeItem("token")
-      localStorage.removeItem("username")
-      window.location.reload()
-    }
-
-    throw new Error(
-      data.detail || data.error || `Request failed (${response.status})`
-    )
-  }
-
-  return data
-}
-
-
 // ---------------- MAIN APP ----------------
 
 function App() {
   const [token, setToken] = useState(
     localStorage.getItem("token")
   )
+
+  const sessionVersion = useRef(0)
 
   const [isLogin, setIsLogin] = useState(true)
   const [username, setUsername] = useState("")
@@ -220,6 +187,7 @@ function App() {
       notes: form.notes.trim() || null,
     }
 
+    const requestSession = sessionVersion.current
     setSaving(true)
 
     try {
@@ -232,6 +200,8 @@ function App() {
           },
           token
         )
+
+        if (sessionVersion.current !== requestSession) return
 
         setInternships((previous) =>
           previous.map((item) =>
@@ -250,6 +220,8 @@ function App() {
           token
         )
 
+        if (sessionVersion.current !== requestSession) return
+
         setInternships((previous) => [
           created,
           ...previous,
@@ -260,9 +232,9 @@ function App() {
 
       clearForm()
     } catch (err) {
-      setError(err.message)
+      if (sessionVersion.current === requestSession) setError(err.message)
     } finally {
-      setSaving(false)
+      if (sessionVersion.current === requestSession) setSaving(false)
     }
   }
 
@@ -301,12 +273,15 @@ function App() {
     setError("")
     setSuccess("")
 
+    const requestSession = sessionVersion.current
     try {
       await apiRequest(
         `/internships/${id}`,
         { method: "DELETE" },
         token
       )
+
+      if (sessionVersion.current !== requestSession) return
 
       setInternships((previous) =>
         previous.filter((item) => item.id !== id)
@@ -318,7 +293,7 @@ function App() {
 
       setSuccess("Internship deleted successfully!")
     } catch (err) {
-      setError(err.message)
+      if (sessionVersion.current === requestSession) setError(err.message)
     }
   }
 
@@ -326,6 +301,11 @@ function App() {
   // ---------------- LOGOUT ----------------
 
   function logout() {
+    sessionVersion.current += 1
+    setLoading(false)
+    setSaving(false)
+    setSearch("")
+    setFilterStatus("All")
     localStorage.removeItem("token")
     localStorage.removeItem("username")
 
@@ -524,6 +504,7 @@ function App() {
         </h2>
 
         <form className="form" onSubmit={saveInternship}>
+          <fieldset disabled={loading || saving} className="form-fields">
           <input
             name="company"
             placeholder="Company *"
@@ -602,6 +583,7 @@ function App() {
               Cancel
             </button>
           )}
+          </fieldset>
         </form>
       </section>
 
@@ -690,6 +672,7 @@ function App() {
                 <div className="actions">
                   <button
                     className="edit"
+                    disabled={saving}
                     onClick={() => editInternship(internship)}
                   >
                     Edit
@@ -697,6 +680,7 @@ function App() {
 
                   <button
                     className="delete"
+                    disabled={saving}
                     onClick={() => deleteInternship(internship.id)}
                   >
                     Delete
