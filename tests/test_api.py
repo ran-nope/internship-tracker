@@ -109,9 +109,23 @@ class ApiTests(unittest.TestCase):
     def test_preflight(self):
         for path, method, requested in [('/signup', 'POST', 'content-type'), ('/login', 'POST', 'content-type'), ('/internships', 'GET', 'authorization'), ('/internships/1', 'PUT', 'authorization,content-type'), ('/internships/1', 'DELETE', 'authorization')]:
             extra = [(b'access-control-request-method', method.encode()), (b'access-control-request-headers', requested.encode())]
-            status, headers, _ = self.request('OPTIONS', path, extra_headers=extra)
-            self.assertEqual(status, 200)
-            self.assertEqual(headers[b'access-control-allow-origin'], b'https://test-frontend.example')
+            for origin in (
+                'http://localhost:5173',
+                'http://localhost:5174',
+                'http://127.0.0.1:5173',
+                'https://internship-tracker-seven-alpha.vercel.app',
+                'https://internship-tracker-git-master-kpc13.vercel.app',
+                'https://test-frontend.example',
+            ):
+                with self.subTest(path=path, origin=origin):
+                    status, headers, _ = self.request('OPTIONS', path, origin=origin, extra_headers=extra)
+                    self.assertEqual(status, 200)
+                    self.assertEqual(headers[b'access-control-allow-origin'], origin.encode())
+                    self.assertEqual(headers[b'access-control-allow-credentials'], b'true')
+                    self.assertIn(method, headers[b'access-control-allow-methods'].decode().split(', '))
+                    allowed_headers = headers[b'access-control-allow-headers'].decode().lower().split(', ')
+                    for requested_header in requested.split(','):
+                        self.assertIn(requested_header, allowed_headers)
             status, headers, _ = self.request('OPTIONS', path, origin='https://untrusted.example', extra_headers=extra)
             self.assertEqual(status, 400)
             self.assertNotIn(b'access-control-allow-origin', headers)

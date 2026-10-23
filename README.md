@@ -174,3 +174,64 @@ invalid-session handling, pending-delete controls, and responsive layouts at 320
 375, 390, 768, and 1280 pixels. These are Chromium viewport checks, not a substitute
 for native Safari/Firefox or real-device testing. See `TEST_REPORT.md` for results
 and the separate read-only deployment observations.
+
+## Phase 2 workspace
+
+The frontend now provides an Overview and Applications workspace with a
+collapsible desktop sidebar, a keyboard-accessible mobile drawer, and light/dark
+appearance saved in the browser. Application data is never cached in browser
+storage; the existing token/username behavior is retained, and only visual
+preferences (theme and card/table choice) are added.
+
+Overview computes all-time totals from the authenticated `/internships` response.
+Interview and offer metrics count current statuses; Selected remains separate.
+Selection rate is Selected divided by total applications. List filters do not
+change overview totals. Trend ranges affect only the application-date chart and
+include zero months; all-time ranges use at most 24 grouped buckets. No status
+history or conversion-rate claims are inferred from current-status records.
+
+Applications supports combined company/role/location search, status filtering,
+application-date sorting (newest/oldest), company sorting, and reset. Results are
+paginated eight at a time. Desktop users can choose tables or cards; narrow
+screens use cards. All existing optional fields remain available through cards,
+row details, and the focused add/edit dialog. Saving/deleting locks conflicting
+actions; closing the dialog restores keyboard focus.
+
+Recharts loads in a separate bundle after login and is isolated by an error
+boundary so a chart download failure does not disable CRUD. Chart totals have
+text equivalents and trend data can be expanded as a table. Errors remain
+visible with retry where appropriate; successes use dismissible toast messages.
+
+Frontend responsibilities are split into `src/hooks/useTracker.js` (authentication
+and CRUD lifecycle), `src/utils/applications.js` (pure analytics/filtering/date
+logic), and focused components under `src/components`. The FastAPI endpoints,
+PostgreSQL schema, authentication contract, and hosting configuration are unchanged.
+
+Run the frontend calculation/API checks with `npm --prefix frontend test`, then
+run the full browser suite as described above. Phase 2 adds analytics, sorting,
+reset, pagination, theme, mobile navigation, focus restoration, failed-load,
+chart-failure, and Axe accessibility regressions. See `PHASE2_REPORT.md` for the
+final local validation and limitations. No production test data is needed.
+
+## Public site and design refinement
+
+Anonymous visitors now enter a separate public landing page. Use `/#/login` and
+`/#/signup` for authentication, `/#/overview` for the authenticated dashboard, and
+`/#/applications` for application management. These hash routes work with the
+existing Vercel setup without new rewrites. Navigation supports back/forward and
+refresh; protected routes preserve an allowlisted login return destination.
+
+Landing, authentication, and workspace share a warm paper/graphite/iris design
+system and a self-hosted Manrope font. The public dashboard preview is explicitly
+illustrative and never uses account data. Real analytics and CRUD remain available
+only in the authenticated workspace. No new npm dependency was required for this
+refinement. Font licensing is included under `frontend/src/assets/fonts/`.
+
+The public navigation and accessibility browser scenarios supplement the original
+Phase 1/2 regressions. Run all browser tests with `npm --prefix frontend run test:e2e` and the frontend calculation, API-helper, and navigation unit suites with
+`npm --prefix frontend test`. See `FRONTEND_DESIGN_REPORT.md` for route behavior,
+security considerations, visual checks, and validation results.
+
+See [DEPLOYMENT_PREPARATION.md](DEPLOYMENT_PREPARATION.md) for the combined release
+checks, localhost:5174 CORS fix, static-host routing, deployment requirements, and
+existing backend dependency advisory assessment.

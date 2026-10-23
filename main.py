@@ -29,6 +29,7 @@ if not SECRET_KEY:
 app = FastAPI(title="Internship Tracker API")
 CORS_ORIGINS = list(dict.fromkeys([
     "http://localhost:5173",
+    "http://localhost:5174",
     "http://127.0.0.1:5173",
     "https://internship-tracker-seven-alpha.vercel.app",
     "https://internship-tracker-git-master-kpc13.vercel.app",
