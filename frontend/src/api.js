@@ -29,11 +29,17 @@ export async function apiRequest(path, options = {}, token = null) {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   }
 
-  const response = await fetch(`${API_URL}/${path.replace(/^\/+/, "")}`, {
-    ...options,
-    headers,
-  })
-  const data = await response.json().catch(() => ({}))
+  let response
+  try {
+    response = await fetch(`${API_URL}/${path.replace(/^\/+/, "")}`, {
+      ...options,
+      headers,
+    })
+  } catch (error) {
+    if (error.name === "AbortError") throw error
+    throw new Error("Unable to reach the API. Check your connection and try again.", { cause: error })
+  }
+  const data = await response.json().catch(() => null)
 
   if (!response.ok) {
     // An old request must not log out a newer session.
@@ -42,11 +48,27 @@ export async function apiRequest(path, options = {}, token = null) {
       localStorage.removeItem("username")
       window.location.reload()
     }
-    const detail = data.detail || data.error
+    const detail = data?.detail || data?.error
     const message = Array.isArray(detail)
-      ? detail.map((item) => `${(item.loc || []).join(".")}: ${item.msg}`).join("; ")
+      ? detail.filter((item) => item && typeof item.msg === "string")
+        .map((item) => `${Array.isArray(item.loc) ? item.loc.join(".") : "Request"}: ${item.msg}`).join("; ")
       : typeof detail === "string" ? detail : `Request failed (${response.status})`
-    throw new Error(message)
+    throw new Error(message || `Request failed (${response.status})`)
   }
+  const endpoint = path.replace(/^\/+/, "")
+  const method = (options.method || "GET").toUpperCase()
+  const isInternship = (item) => item && Number.isInteger(item.id) && item.id > 0 &&
+    ["company", "role", "status", "application_date"].every((field) => typeof item[field] === "string") &&
+    ["location", "job_url", "notes"].every((field) => item[field] == null || typeof item[field] === "string")
+  let valid = data !== null
+  if (endpoint === "internships" && method === "GET") {
+    valid = Array.isArray(data) && data.every(isInternship)
+  } else if ((endpoint === "internships" && method === "POST") ||
+             (/^internships\/\d+$/.test(endpoint) && method === "PUT")) {
+    valid = isInternship(data)
+  } else if (endpoint === "login" && method === "POST") {
+    valid = typeof data?.access_token === "string" && !!data.access_token && typeof data.username === "string"
+  }
+  if (!valid) throw new Error("The API returned an invalid response. Please try again.")
   return data
 }

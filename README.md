@@ -84,12 +84,14 @@ branch in both hosting dashboards. A push to the configured deployment branch ca
 trigger builds automatically. No database migration or data cleanup is part of
 this release.
 
-A local history scan found the current local database connection string in earlier
-commits. Treat the database credential as exposed: rotate it through the database
-provider, update Render and your local environment privately, and verify the
-service can reconnect. Do not paste it into Git, logs, tickets, or chat. Removing
-it from current files does not remove historical exposure. History rewriting
-requires separate coordination and is not performed by this patch.
+A history scan found a pre-rotation local PostgreSQL connection string and an
+older hardcoded JWT key in earlier commits. The local database password has since
+been rotated and its application connection verified. The Render JWT key has also
+been rotated, as confirmed by the operator. The historical database URL targeted
+local PostgreSQL; it was not evidence of a leaked Render database credential.
+Do not paste credentials into Git, logs, tickets, or chat. Removing secrets from
+current files does not remove historical exposure. History rewriting requires
+separate coordination and is not performed by this patch.
 
 Render configuration to check privately:
 
@@ -141,3 +143,34 @@ read-only list check can be done manually with an existing account; do not chang
 its records. Full production CRUD would require separate authorization for
 explicit disposable test data. The current local tests already exercise full CRUD
 against an in-memory database.
+
+## Phase 1 browser tests
+
+The browser suite runs against a brand-new disposable PostgreSQL cluster and a
+local Vite server. It never uses the database credentials in `.env` and never
+creates or changes production records. It requires PostgreSQL server tools
+(`pg_config`, `initdb`, `pg_ctl`), the existing backend virtual environment, and a
+Playwright-compatible Chromium browser. The temporary database uses an available
+loopback port and is stopped and removed when the test server exits normally.
+API and frontend test ports 8001 and 5174 must be free; tests refuse to reuse an
+existing server.
+
+```
+cd frontend
+npm ci
+npx playwright install chromium
+npm run test:e2e
+```
+
+For an existing system Chromium installation, instead run:
+
+```
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:e2e
+```
+
+The suite covers browser signup/login, CRUD persisted across reloads, logout and
+account isolation, search/filter behavior, network/HTTP/malformed-response errors,
+invalid-session handling, pending-delete controls, and responsive layouts at 320,
+375, 390, 768, and 1280 pixels. These are Chromium viewport checks, not a substitute
+for native Safari/Firefox or real-device testing. See `TEST_REPORT.md` for results
+and the separate read-only deployment observations.

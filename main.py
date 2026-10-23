@@ -122,11 +122,12 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
             token,
             SECRET_KEY,
             algorithms=[ALGORITHM],
+            options={"require_exp": True},
         )
 
         user_id = payload.get("user_id")
 
-        if not isinstance(user_id, int):
+        if type(user_id) is not int or user_id <= 0:
             raise HTTPException(
                 status_code=401,
                 detail="Invalid authentication token",

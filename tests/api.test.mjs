@@ -16,7 +16,7 @@ test('URL joining, auth headers, validation messages, and session expiry', async
   let request
   globalThis.fetch = async (url, options) => {
     request = { url, options }
-    return { ok: true, json: async () => [] }
+    return { ok: true, json: async () => ({id:1,company:'Test',role:'Intern',status:'Applied',application_date:'2026-10-23'}) }
   }
   await api.apiRequest('///internships', {method: 'POST', body: '{}'}, 'test-token')
   assert.equal(request.url, 'https://api.example/internships')
@@ -41,4 +41,18 @@ test('URL joining, auth headers, validation messages, and session expiry', async
   await assert.rejects(api.apiRequest('/internships', {}, 'new-token'), /Expired/)
   assert.equal(removed, 2)
   assert.equal(reloaded, 1)
+})
+
+
+test('malformed successful responses and network failures do not enter app state', async () => {
+  const api = await load({ VITE_API_URL: 'https://validation.example', PROD: true })
+  for (const data of [{unexpected:true}, [null], [{id:1}], null]) {
+    globalThis.fetch = async () => ({ok:true, json:async()=>data})
+    await assert.rejects(api.apiRequest('/internships'), /invalid response/)
+  }
+  globalThis.fetch = async () => ({ok:true,json:async()=>({})})
+  await assert.rejects(api.apiRequest('/internships', {method:'POST',body:'{}'}), /invalid response/)
+  await assert.rejects(api.apiRequest('/login', {method:'POST',body:'{}'}), /invalid response/)
+  globalThis.fetch = async () => { throw new TypeError('Failed to fetch') }
+  await assert.rejects(api.apiRequest('/internships'), /Unable to reach the API/)
 })

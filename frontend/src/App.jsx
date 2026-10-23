@@ -46,6 +46,7 @@ function App() {
 
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
@@ -157,6 +158,7 @@ function App() {
 
   async function saveInternship(event) {
     event.preventDefault()
+    if (loading || saving || deletingId !== null) return
 
     setError("")
     setSuccess("")
@@ -266,6 +268,7 @@ function App() {
   // ---------------- DELETE ----------------
 
   async function deleteInternship(id) {
+    if (saving || deletingId !== null) return
     if (!window.confirm("Delete this internship permanently?")) {
       return
     }
@@ -274,6 +277,7 @@ function App() {
     setSuccess("")
 
     const requestSession = sessionVersion.current
+    setDeletingId(id)
     try {
       await apiRequest(
         `/internships/${id}`,
@@ -294,6 +298,8 @@ function App() {
       setSuccess("Internship deleted successfully!")
     } catch (err) {
       if (sessionVersion.current === requestSession) setError(err.message)
+    } finally {
+      if (sessionVersion.current === requestSession) setDeletingId(null)
     }
   }
 
@@ -304,6 +310,7 @@ function App() {
     sessionVersion.current += 1
     setLoading(false)
     setSaving(false)
+    setDeletingId(null)
     setSearch("")
     setFilterStatus("All")
     localStorage.removeItem("token")
@@ -504,7 +511,7 @@ function App() {
         </h2>
 
         <form className="form" onSubmit={saveInternship}>
-          <fieldset disabled={loading || saving} className="form-fields">
+          <fieldset disabled={loading || saving || deletingId !== null} className="form-fields">
           <input
             name="company"
             placeholder="Company *"
@@ -672,7 +679,7 @@ function App() {
                 <div className="actions">
                   <button
                     className="edit"
-                    disabled={saving}
+                    disabled={saving || deletingId !== null}
                     onClick={() => editInternship(internship)}
                   >
                     Edit
@@ -680,10 +687,10 @@ function App() {
 
                   <button
                     className="delete"
-                    disabled={saving}
+                    disabled={saving || deletingId !== null}
                     onClick={() => deleteInternship(internship.id)}
                   >
-                    Delete
+                    {deletingId === internship.id ? "Deleting..." : "Delete"}
                   </button>
                 </div>
               </article>

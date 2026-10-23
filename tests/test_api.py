@@ -7,7 +7,8 @@ import json
 import os
 import sys
 import unittest
-from unittest.mock import patch
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
 
 
 class ApiTests(unittest.TestCase):
@@ -128,3 +129,60 @@ class ApiTests(unittest.TestCase):
         token = self.account('alice')
         payload = {'company': 'Example', 'role': 'Intern', 'status': 'Applied', 'application_date': '2026-10-23', 'job_url': 'javascript:alert(1)'}
         self.assertEqual(self.request('POST', '/internships', payload, token)[0], 422)
+
+    def test_expired_tampered_and_malformed_claims(self):
+        from jose import jwt
+        token = self.account('alice')
+        user_id = jwt.decode(token, self.main.SECRET_KEY, algorithms=['HS256'])['user_id']
+        future = datetime.now(timezone.utc) + timedelta(hours=1)
+        payloads = [
+            {'user_id': user_id, 'exp': datetime.now(timezone.utc) - timedelta(minutes=1)},
+            {'user_id': user_id},
+            {'exp': future},
+            {'user_id': True, 'exp': future},
+            {'user_id': '1', 'exp': future},
+            {'user_id': 0, 'exp': future},
+        ]
+        for payload in payloads:
+            invalid = jwt.encode(payload, self.main.SECRET_KEY, algorithm='HS256')
+            status, headers, _ = self.request('GET', '/internships', token=invalid)
+            self.assertEqual(status, 401)
+            self.assertEqual(headers[b'www-authenticate'], b'Bearer')
+        forged = jwt.encode({'user_id': user_id, 'exp': future}, 'different-test-signing-key', algorithm='HS256')
+        self.assertEqual(self.request('GET', '/internships', token=forged)[0], 401)
+
+    def test_validation_and_persisted_optional_fields(self):
+        token = self.account('alice')
+        payload = {'company': '  Example  ', 'role': '  Intern  ', 'status': 'Applied',
+                   'application_date': '2026-10-23', 'location': 'Bengaluru',
+                   'job_url': 'https://example.com/job', 'notes': 'Line one\nLine two', 'user_id': 99999}
+        status, _, created = self.request('POST', '/internships', payload, token)
+        self.assertEqual(status, 200)
+        self.assertEqual(created['company'], 'Example')
+        self.assertEqual(created['role'], 'Intern')
+        self.assertNotEqual(created['user_id'], 99999)
+        persisted = self.request('GET', '/internships', token=token)[2][0]
+        for key in ('location', 'job_url', 'notes', 'application_date'):
+            self.assertEqual(persisted[key], payload[key])
+        invalid_cases = [('company', ' '), ('role', ''), ('company', 'A' * 201),
+                         ('status', 'Not a status'), ('application_date', '2026-02-30'),
+                         ('job_url', 'https://example.com/a b')]
+        for key, value in invalid_cases:
+            invalid = dict(payload, **{key: value})
+            for method, path in [('POST', '/internships'), ('PUT', f"/internships/{created['id']}")]:
+                status, headers, _ = self.request(method, path, invalid, token)
+                self.assertEqual(status, 422)
+                self.assertIn(b'access-control-allow-origin', headers)
+        self.assertEqual(len(self.request('GET', '/internships', token=token)[2]), 1)
+        self.assertEqual(self.request('PUT', '/internships/99999', payload, token)[0], 404)
+        self.assertEqual(self.request('DELETE', '/internships/99999', token=token)[0], 404)
+
+    def test_signup_race_rolls_back_and_returns_conflict(self):
+        from sqlalchemy.exc import IntegrityError
+        db = MagicMock()
+        db.query.return_value.filter.return_value.first.side_effect = [None, object()]
+        db.commit.side_effect = IntegrityError('simulated duplicate insert', {}, Exception())
+        with self.assertRaises(self.main.HTTPException) as error:
+            self.main.signup(self.main.User(username='race', password='test-password'), db)
+        self.assertEqual(error.exception.status_code, 409)
+        db.rollback.assert_called_once()
