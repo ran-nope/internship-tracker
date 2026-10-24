@@ -17,6 +17,7 @@ def main():
             os.environ.pop(name)
     with disposable_postgres() as url:
         os.environ['PYTHON_DOTENV_DISABLED'] = '1'
+        os.environ['MAINTENANCE_MODE'] = 'false'
         os.environ['DATABASE_URL'] = url
         os.environ['MIGRATION_DATABASE_URL'] = url
         os.environ['SECRET_KEY'] = 'isolated-browser-test-secret-not-for-production'

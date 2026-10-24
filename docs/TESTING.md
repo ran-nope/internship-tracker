@@ -29,6 +29,14 @@ Migration tests load a frozen legacy SQL fixture independent of current ORM meta
 
 [Manual migration procedures](DATABASE_MIGRATIONS.md) distinguish disposable harness setup from operator-controlled production changes. The current work does not verify the actual production schema or restore a production backup.
 
+## Maintenance and connection safety
+
+Ordinary backend discovery includes `tests/test_maintenance.py`: strict startup configuration, non-secret identifiers, early body/auth/database rejection, safe methods/read-only login, CORS, uncached database-independent status, HEAD behavior, and no hot toggle from environment edits. Blocked requests use both anonymous and synthetic authenticated client cases. Actual app import/status/gate tests use an unreachable loopback URL and forbid session construction.
+
+The opt-in PostgreSQL command above also runs `MaintenanceDatabaseTests` and maintenance API regressions. It proves SQLSTATE 25006 for writes in maintenance sessions; read-only reapplication after commit/rollback/savepoints; writable reuse of the same backend connection after maintenance; existing-token/login/owned-read isolation and normal writes after disabling; stale idle connection recovery using pre-ping; and no write replay after a connection dies inside a transaction. It also demonstrates an admitted legacy write committing after the new generation already returns 503, so sampling status alone cannot prove quiescence. Connection termination occurs only inside a newly created disposable cluster.
+
+The frontend API unit suite verifies a maintenance 503 displays the server message, preserves the session, and does not automatically retry a mutation. Browser regressions use maintenance disabled explicitly and continue to verify normal UI/API functionality. These tests do not emulate Neon PgBouncer or establish production instance termination. See the [cutover runbook](MAINTENANCE_CUTOVER.md) and [maintenance verification](MAINTENANCE_VERIFICATION.md).
+
 ## Frontend unit tests, lint, and build
 
 ```bash

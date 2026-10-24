@@ -1,19 +1,24 @@
+from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
+import json
+import logging
 from typing import Optional
 from urllib.parse import urlsplit
 import os
 import bcrypt
 from dotenv import load_dotenv
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
+from starlette.responses import JSONResponse
 import jwt
 from jwt.exceptions import InvalidTokenError
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from database import SessionLocal
+from database import RUNTIME, SessionLocal, engine
+from maintenance import MaintenanceMiddleware
 from models import InternshipDB, UserDB
 
 
@@ -27,7 +32,21 @@ ALGORITHM = "HS256"
 if not SECRET_KEY:
     raise RuntimeError("SECRET_KEY is missing from your .env file")
 
-app = FastAPI(title="Internship Tracker API")
+logger = logging.getLogger('uvicorn.error')
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    logger.info('Application startup %s', json.dumps(RUNTIME.status(), sort_keys=True))
+    try:
+        yield
+    finally:
+        engine.dispose()
+        logger.info('Application shutdown %s', json.dumps(RUNTIME.status(), sort_keys=True))
+
+
+app = FastAPI(title="Internship Tracker API", lifespan=lifespan)
+app.add_middleware(MaintenanceMiddleware, enabled=RUNTIME.maintenance_mode)
 CORS_ORIGINS = list(dict.fromkeys([
     "http://localhost:5173",
     "http://localhost:5174",
@@ -181,6 +200,15 @@ def commit_internship(db: Session):
 @app.get("/")
 def home():
     return {"message": "Internship Tracker is running"}
+
+
+@app.api_route('/status', methods=['GET', 'HEAD'])
+async def status(request: Request):
+    response = JSONResponse(RUNTIME.status(), headers={'Cache-Control': 'no-store'})
+    if request.method == 'HEAD':
+        # Retain the GET representation's headers without sending its body.
+        response.body = b''
+    return response
 
 
 # ---------------- SIGNUP ----------------
@@ -418,6 +446,6 @@ app = CORSMiddleware(
     app=app,
     allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )

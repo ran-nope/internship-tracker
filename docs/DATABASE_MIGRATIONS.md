@@ -143,6 +143,10 @@ Do not advance the revision marker to force progress. CLI errors deliberately om
 - **Reviewed schema rollback:** downgrade to `0003_owner_foreign_key` to return to unvalidated protection; downgrade to `0002_owner_index` to remove the FK; downgrade to `0001_legacy_baseline` to remove the index. These operations retain application rows, but reduce protection/performance and involve locks. Stop after each and run the matching preflight. No production rollback has been performed.
 - **Never downgrade past the baseline.** Do not delete migration bookkeeping or use table resets. Backup restoration is disaster recovery, requires a separately approved cutover/write-freeze plan, and can lose post-backup writes. Restore into a new isolated database first; never blindly overwrite the live database.
 
+## Maintenance during a database cutover
+
+The new [application-level maintenance runbook](MAINTENANCE_CUTOVER.md) supplies a free-hosting write gate and explicit old-instance retirement checks. Its PostgreSQL read-only setting is transaction-scoped and applies only to runtime ORM sessions; migration/admin tools remain separately controlled. It does not authorize new migrations, create a database-wide fence, or make an older ungated instance safe. The owner has separately reported completing the Neon migrations; do not repeat stamps/upgrades as part of a cutover.
+
 ## Backend release ordering and verification
 
 After separate approval for deployment/migrations, make migration files available to the designated operator without changing the running service first. Pushing the linked branch may automatically deploy; coordinate hosting auto-deploy behavior explicitly before any push. This repository does not configure a production migration hook.

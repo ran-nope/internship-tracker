@@ -39,6 +39,7 @@ The password prompt is interactive. Choose a local password and place it only in
 | `SECRET_KEY` | Root `.env` / backend hosting | Yes | Private random HS256 signing secret; use at least 32 random bytes |
 | `CORS_ORIGINS` | Root `.env` / backend hosting | Optional | Additional comma-separated exact HTTP(S) browser origins |
 | `VITE_API_URL` | `frontend/.env.local` / Vercel build environment | Optional | Public API base URL; development and production defaults exist |
+| `MAINTENANCE_MODE` | Backend environment / root `.env` | Optional | Startup boolean `true`/`false`; default false; restart required |
 | `PORT` | Render runtime | Hosting provided | Passed to Uvicorn by the startup command |
 
 Backend template values (placeholders only):
@@ -91,6 +92,12 @@ npm --prefix frontend run dev -- --host localhost --port 5173 --strictPort
 ```
 
 Open `http://localhost:5173`. The local API greeting is at `http://127.0.0.1:8000/`. The API performs no schema changes on startup. Missing schema must be addressed through the manual migration process. [Database migration procedures](DATABASE_MIGRATIONS.md).
+
+## Local maintenance behavior
+
+`MAINTENANCE_MODE=true` starts the backend in read-only maintenance mode. Mutating methods return uncached JSON HTTP 503 before auth/validation/database access, except the existing read-only POST login operation. GET/HEAD/OPTIONS follow normal routing/security. `GET /status` exposes only the process flag, public release identifier, and random instance identifier; it does not connect to the database. The root greeting is unchanged. Set the flag to `false` and restart to restore writes. Invalid/empty values fail startup; `1`/`0` are not accepted.
+
+Do not toggle a regular local database during this task's verification; tests create their own disposable clusters. See [maintenance tests](TESTING.md#maintenance-and-connection-safety) and [free-hosting cutover gates](MAINTENANCE_CUTOVER.md).
 
 ## Common development issues
 

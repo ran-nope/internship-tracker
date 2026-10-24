@@ -18,6 +18,7 @@ The production fallback already uses the Render API URL. Rebuild if the API base
 - Install: `pip install -r requirements.txt` in a clean dependency environment.
 - Start: `uvicorn main:app --host 0.0.0.0 --port "$PORT"`.
 - Private runtime variables: `DATABASE_URL` and `SECRET_KEY`.
+- Startup-only `MAINTENANCE_MODE`: defaults to `false`; set to `true` and redeploy for read-only maintenance. Only boolean text is accepted.
 - Optional public-origin setting: `CORS_ORIGINS`, containing exact allowed origins without paths or wildcards.
 
 Use the existing production database and signing key for ordinary updates. The PyJWT migration preserves valid HS256 tokens with the same key. If migrating from an older cached environment, clear the build cache or rebuild the environment so removed python-jose/ecdsa packages do not remain installed; pip does not uninstall removed requirements automatically.
@@ -29,6 +30,12 @@ Both supplied Vercel hostnames are currently in the backend allowlist. A new pre
 Alembic revisions and a manual operator wrapper now exist. Startup never creates or migrates tables. Existing production data requires a verified backup/restore rehearsal, schema preflight, the exact legacy baseline stamp, and explicit incremental upgrades. The index is built concurrently; the FK is installed `NOT VALID` with `ON DELETE RESTRICT` and validated separately only after zero orphans are confirmed. Do not run migrations in a startup hook, seed production, or reset tables.
 
 Read the [migration, backup, locking, stopping, and recovery runbook](DATABASE_MIGRATIONS.md) before release. No production schema was inspected or changed during implementation. The new application release remains compatible with the legacy populated schema; new empty environments must be migrated before serving requests. Coordinate branch-triggered auto-deploy before any approved push.
+
+## Free-hosting maintenance and database cutover
+
+Use the [maintenance/cutover runbook](MAINTENANCE_CUTOVER.md). The application gate blocks mutations before authentication/validation/database work, allows read-only login/owned reads, and starts maintenance ORM transactions read-only on PostgreSQL. It requires no paid hosting feature. `/status` provides uncached process-local maintenance/release/instance metadata; it is not a database-health or global-drain assertion.
+
+Environment edits require an explicit restart/redeploy. Old ungated instances and in-flight writes must be verified retired/drained before final data comparison. Keep the flag true while changing the database target and through overlap; reopen only after explicit acceptance. Runtime pooled connections use pre-ping and a bounded connect timeout; admin checks retain a direct connection. Preserve TLS and the signing key. Never use a blind rollback that restores an old database or disables the gate.
 
 ## Verification after an approved deployment
 

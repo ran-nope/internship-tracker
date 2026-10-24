@@ -124,6 +124,8 @@ The [CI workflow](.github/workflows/ci.yml) runs backend/frontend tests, ESLint,
 
 ## Deployment overview
 
+The backend supports startup-configured read-only maintenance with uncached JSON 503 responses for mutations and a database-independent `/status` endpoint. [Render Free write-freeze and cutover procedure](docs/MAINTENANCE_CUTOVER.md) explains the required old-instance drain checks; a status response alone does not prove a global freeze.
+
 Vercel builds `frontend/` with `npm run build` and serves `dist/`. Render installs `requirements.txt` and starts `uvicorn main:app`. Database and signing-key settings belong only on the backend. Browser routes use fragments such as `/#/applications`, so direct links and refreshes do not require SPA rewrites. [Deployment reference](docs/DEPLOYMENT.md).
 
 ## Repository map

@@ -25,6 +25,7 @@ class ApiTests(unittest.TestCase):
             'SECRET_KEY': 'isolated-test-secret-not-for-production',
             'CORS_ORIGINS': 'https://test-frontend.example/',
             'PYTHON_DOTENV_DISABLED': '1',
+            'MAINTENANCE_MODE': 'false',
         })
         cls.environment.start()
         from sqlalchemy import create_engine, event

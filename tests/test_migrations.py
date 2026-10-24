@@ -2,6 +2,7 @@
 
 RUN_POSTGRES_TESTS=1 venv/bin/python -B -m unittest discover -s tests -p test_migrations.py -v
 """
+from contextlib import contextmanager
 import hashlib
 import importlib
 import json
@@ -13,7 +14,7 @@ import unittest
 from unittest.mock import patch
 
 from sqlalchemy import create_engine, text
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError, DBAPIError
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 
@@ -330,6 +331,7 @@ class PostgresApiTests(test_api.ApiTests):
             'SECRET_KEY': 'isolated-test-secret-not-for-production',
             'CORS_ORIGINS': 'https://test-frontend.example/',
             'PYTHON_DOTENV_DISABLED': '1',
+            'MAINTENANCE_MODE': 'false',
         })
         cls.environment.start()
         run('upgrade', VALIDATED)
@@ -363,3 +365,161 @@ class PostgresApiTests(test_api.ApiTests):
         self.assertEqual(self.request('GET', '/internships', token=bob)[2], [])
         with self.database.SessionLocal() as db:
             self.assertEqual(db.query(self.main.InternshipDB).count(), 0)
+
+
+    @contextmanager
+    def maintenance(self):
+        from db_runtime import build_session_factory
+        from maintenance import MaintenanceMiddleware, RuntimeSettings
+        from starlette.middleware.cors import CORSMiddleware
+        factory = build_session_factory(self.database.engine, maintenance_mode=True)
+        original = self.main.app
+        gated = CORSMiddleware(MaintenanceMiddleware(original.app, enabled=True),
+            allow_origins=['https://test-frontend.example'], allow_credentials=True,
+            allow_methods=['GET','HEAD','POST','PUT','DELETE','OPTIONS'], allow_headers=['Authorization','Content-Type'])
+        with patch.object(self.main, 'SessionLocal', factory), patch.object(self.main, 'app', gated), \
+             patch.object(self.main, 'RUNTIME', RuntimeSettings(maintenance_mode=True)):
+            yield
+
+    def test_maintenance_existing_sessions_login_reads_isolation_and_restoration(self):
+        token = self.account('alice')
+        other = self.account('bob')
+        application = {'company':'Example', 'role':'Intern', 'status':'Applied', 'application_date':'2026-10-23'}
+        created = self.request('POST', '/internships', application, token)[2]
+        path = f"/internships/{created['id']}"
+        with self.maintenance():
+            self.assertEqual(self.request('POST','/login',{'username':'alice','password':'test-password'})[0], 200)
+            self.assertEqual(self.request('GET','/internships',token=token)[2], [created])
+            self.assertEqual(self.request('GET','/internships',token=other)[2], [])
+            self.assertEqual(self.request('GET','/internships')[0], 401)
+            self.assertEqual(self.request('GET','/internships',token='invalid')[0], 401)
+            for method, endpoint, body in [('POST','/signup',{'username':'charlie','password':'test-password'}),
+                    ('POST','/internships',application),('PUT',path,application),('DELETE',path,None)]:
+                status, headers, data = self.request(method, endpoint, body, token)
+                self.assertEqual(status, 503)
+                self.assertEqual(headers[b'cache-control'], b'no-store')
+                self.assertEqual(headers[b'access-control-allow-origin'], b'https://test-frontend.example')
+            self.assertEqual(self.request('GET','/internships',token=token)[2], [created])
+            self.assertTrue(self.request('GET','/status')[2]['maintenance_mode'])
+        application['status'] = 'Interview'
+        self.assertEqual(self.request('PUT',path,application,token)[0], 200)
+        self.assertEqual(self.request('DELETE',path,token=token)[0], 200)
+        self.assertEqual(self.request('POST','/signup',{'username':'charlie','password':'test-password'})[0], 200)
+
+
+@unittest.skipUnless(ENABLED, 'Opt-in disposable PostgreSQL connection/maintenance tests')
+class MaintenanceDatabaseTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.cluster = disposable_postgres()
+        cls.url = cls.cluster.__enter__()
+        cls.environment = patch.dict(os.environ, {**{key: '' for key in os.environ if key.startswith('PG')},
+                                                 'MIGRATION_DATABASE_URL': cls.url})
+        cls.environment.start()
+        run('upgrade', VALIDATED)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.environment.stop()
+        cls.cluster.__exit__(None, None, None)
+
+    def setUp(self):
+        from maintenance import RuntimeSettings
+        from db_runtime import build_engine, build_session_factory
+        self.runtime = RuntimeSettings(maintenance_mode=True)
+        self.engine = build_engine(self.url, self.runtime)
+        self.readonly = build_session_factory(self.engine, True)
+        self.normal = build_session_factory(self.engine, False)
+        with self.engine.begin() as connection:
+            connection.exec_driver_sql('TRUNCATE internships, users RESTART IDENTITY')
+
+    def tearDown(self):
+        self.engine.dispose()
+
+    def test_read_only_every_transaction_and_no_leak_after_pool_reuse(self):
+        with self.readonly() as db:
+            pid = db.execute(text('SELECT pg_backend_pid()')).scalar_one()
+            self.assertEqual(db.execute(text('SHOW transaction_read_only')).scalar_one(), 'on')
+            self.assertEqual(db.execute(text('SHOW default_transaction_read_only')).scalar_one(), 'off')
+            db.commit()
+            self.assertEqual(db.execute(text('SHOW transaction_read_only')).scalar_one(), 'on')
+            with db.begin_nested():
+                self.assertEqual(db.execute(text('SHOW transaction_read_only')).scalar_one(), 'on')
+            db.rollback()
+            with self.assertRaises(DBAPIError) as error:
+                db.execute(text("INSERT INTO users(username,password) VALUES ('blocked','synthetic-hash')"))
+            self.assertEqual(error.exception.orig.pgcode, '25006')
+            db.rollback()
+            self.assertEqual(db.execute(text('SHOW transaction_read_only')).scalar_one(), 'on')
+        with self.normal() as db:
+            self.assertEqual(db.execute(text('SELECT pg_backend_pid()')).scalar_one(), pid)
+            self.assertEqual(db.execute(text('SHOW transaction_read_only')).scalar_one(), 'off')
+            db.execute(text("INSERT INTO users(username,password) VALUES ('allowed','synthetic-hash')"))
+            db.commit()
+        with self.readonly() as db:
+            self.assertEqual(db.execute(text('SELECT count(*) FROM users')).scalar_one(), 1)
+            db.rollback()
+            self.assertEqual(db.execute(text('SHOW transaction_read_only')).scalar_one(), 'on')
+
+    def test_pre_ping_replaces_a_terminated_idle_connection(self):
+        with self.engine.connect() as connection:
+            old_pid = connection.exec_driver_sql('SELECT pg_backend_pid()').scalar_one()
+            app_name = connection.exec_driver_sql('SHOW application_name').scalar_one()
+            self.assertIn(self.runtime.instance_id, app_name)
+            self.assertLessEqual(len(app_name), 63)
+        controller = create_engine(self.url, hide_parameters=True)
+        try:
+            with controller.connect().execution_options(isolation_level='AUTOCOMMIT') as connection:
+                self.assertTrue(connection.execute(text('SELECT pg_terminate_backend(:pid)'), {'pid':old_pid}).scalar_one())
+            with self.engine.connect() as connection:
+                self.assertNotEqual(connection.exec_driver_sql('SELECT pg_backend_pid()').scalar_one(), old_pid)
+                self.assertEqual(connection.exec_driver_sql('SELECT 1').scalar_one(), 1)
+        finally:
+            controller.dispose()
+
+    def test_disconnect_during_a_transaction_is_not_replayed(self):
+        controller = create_engine(self.url, hide_parameters=True)
+        try:
+            with self.normal() as db:
+                pid = db.execute(text('SELECT pg_backend_pid()')).scalar_one()
+                db.execute(text("INSERT INTO users(username,password) VALUES ('interrupted','synthetic-hash')"))
+                with controller.connect().execution_options(isolation_level='AUTOCOMMIT') as connection:
+                    connection.execute(text('SELECT pg_terminate_backend(:pid)'), {'pid':pid})
+                with self.assertRaises(DBAPIError):
+                    db.commit()
+                db.rollback()
+            with self.normal() as db:
+                self.assertEqual(db.execute(text('SELECT count(*) FROM users')).scalar_one(), 0)
+        finally:
+            controller.dispose()
+
+    def test_old_admitted_write_may_finish_after_new_generation_is_gated(self):
+        # Separate sessions model a legacy instance's admitted transaction and
+        # a newly started maintenance instance. The latter cannot stop the former.
+        from asgi_helpers import request
+        from maintenance import MaintenanceMiddleware
+        from starlette.responses import JSONResponse
+        async def downstream(scope, receive, send):
+            await JSONResponse({'maintenance_mode':True})(scope, receive, send)
+        gate = MaintenanceMiddleware(downstream, enabled=True)
+        with self.normal() as old:
+            old.execute(text("INSERT INTO users(username,password) VALUES ('late-old-write','synthetic-hash')"))
+            self.assertEqual(request(gate, 'POST','/signup',forbid_receive=True)[0], 503)
+            with self.readonly() as observer:
+                self.assertEqual(observer.execute(text('SELECT count(*) FROM users')).scalar_one(), 0)
+            old.commit()
+            with self.readonly() as observer:
+                self.assertEqual(observer.execute(text('SELECT count(*) FROM users')).scalar_one(), 1)
+        # A later comparison must include this old-generation commit.
+
+    def test_startup_engine_creation_is_lazy_and_connection_arguments_are_bounded(self):
+        from db_runtime import build_engine
+        from maintenance import RuntimeSettings
+        from unittest.mock import patch
+        with patch('db_runtime.create_engine') as constructor:
+            build_engine(self.url, RuntimeSettings())
+        arguments = constructor.call_args.kwargs
+        self.assertTrue(arguments['pool_pre_ping'])
+        self.assertTrue(arguments['hide_parameters'])
+        self.assertEqual(arguments['connect_args']['connect_timeout'], 10)
+        self.assertNotIn('options', arguments['connect_args'])

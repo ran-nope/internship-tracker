@@ -12,7 +12,7 @@ flowchart TD
     Browser -.->|Token and display preferences| Storage[Browser localStorage]
 ```
 
-Vercel serves the compiled static assets. React calls the API configured through `VITE_API_URL`; PostgreSQL credentials never enter the frontend. The API uses a SQLAlchemy session per request and closes it when the request completes. The diagram shows responsibilities, not an assertion about private database network settings.
+Vercel serves the compiled static assets. React calls the API configured through `VITE_API_URL`; PostgreSQL credentials never enter the frontend. The API uses a SQLAlchemy session per request and closes it when the request completes. Runtime connections use pre-ping and a PostgreSQL connect timeout; maintenance sessions apply transaction-scoped read-only protection on every outer transaction. The diagram shows responsibilities, not an assertion about private database network settings.
 
 ## Frontend structure
 
@@ -64,6 +64,7 @@ Passwords are hashed with bcrypt. The API checks the 72-byte UTF-8 limit before 
 | Method | Route | Authentication | Behavior |
 | --- | --- | --- | --- |
 | GET | `/` | Public | Service greeting; does not verify database connectivity |
+| GET/HEAD | `/status` | Public | Uncached process maintenance/release/instance metadata; no database access |
 | POST | `/signup` | Public | Create account; duplicate username returns 409 |
 | POST | `/login` | Public | Verify credentials and issue JWT; invalid credentials return 401 |
 | GET | `/internships` | Bearer JWT | Return only the authenticated user's records |
@@ -72,6 +73,12 @@ Passwords are hashed with bcrypt. The API checks the 72-byte UTF-8 limit before 
 | DELETE | `/internships/{id}` | Bearer JWT | Delete only where both record ID and owner match |
 
 An update/delete for another user's record returns 404. Client-supplied ownership cannot override the verified token. Request validation covers required values, status, dates, length limits, and HTTP(S) job URLs. CORS wraps the whole app, including error responses, and permits explicit origins and headers; CORS is not an authorization mechanism.
+
+## Maintenance boundary
+
+A startup-only `MAINTENANCE_MODE` flag controls ASGI middleware inside the outer CORS wrapper. Mutating methods are rejected before routing/authentication/validation/database access with JSON HTTP 503 and `Cache-Control:no-store`. The existing POST login is explicitly allowed because it is read-only; GET/HEAD/OPTIONS follow normal routing. There is no HTTP bypass/toggle. When disabled, existing endpoints keep their normal behavior.
+
+Application PostgreSQL sessions enforce `SET TRANSACTION READ ONLY` per transaction during maintenance; this does not persist on a pooled connection after the transaction ends. `/status` reports only its own process state. Older unmodified processes, admitted requests, external SQL clients, and raw engine operations are outside this process-local guard. The [Render Free runbook](MAINTENANCE_CUTOVER.md) requires termination/drain evidence before accepting a write freeze or comparing databases.
 
 ## Database design
 

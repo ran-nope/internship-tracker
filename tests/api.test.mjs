@@ -56,3 +56,23 @@ test('malformed successful responses and network failures do not enter app state
   globalThis.fetch = async () => { throw new TypeError('Failed to fetch') }
   await assert.rejects(api.apiRequest('/internships'), /Unable to reach the API/)
 })
+
+
+test('maintenance errors preserve the session and never replay a mutation', async () => {
+  const api = await load({ VITE_API_URL: 'https://maintenance.example', PROD: true })
+  const message = 'The application is temporarily read-only for database maintenance. Please try again later.'
+  let calls = 0
+  let removed = 0
+  let reloaded = 0
+  globalThis.localStorage = { getItem: () => 'existing-session', removeItem: () => { removed++ } }
+  globalThis.window = { location: { reload: () => { reloaded++ } } }
+  globalThis.fetch = async () => {
+    calls++
+    return { ok: false, status: 503, json: async () => ({ detail: message }) }
+  }
+  await assert.rejects(api.apiRequest('/internships', { method: 'POST', body: '{}' }, 'existing-session'),
+    (error) => error.message === message)
+  assert.equal(calls, 1)
+  assert.equal(removed, 0)
+  assert.equal(reloaded, 0)
+})
