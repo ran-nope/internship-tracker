@@ -1,0 +1,4 @@
+{
+  "description": "Synthetic python-jose 3.5.0 HS256 token, signed only with the public test key in test_api.py. Expires in 2100 for a stable compatibility fixture; never a production token.",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjQxMDI0NDQ4MDB9.3SVWMDglvuZU9RaAGFavbEYI18v92HEhXErmjkmIhFU"
+}

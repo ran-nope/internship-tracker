@@ -2,12 +2,16 @@
 Uses an isolated in-memory database; never loads production database credentials.
 """
 import asyncio
+import base64
+import hashlib
+import hmac
 import importlib
 import json
 import os
 import sys
 import unittest
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 
@@ -145,7 +149,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.request('POST', '/internships', payload, token)[0], 422)
 
     def test_expired_tampered_and_malformed_claims(self):
-        from jose import jwt
+        import jwt
         token = self.account('alice')
         user_id = jwt.decode(token, self.main.SECRET_KEY, algorithms=['HS256'])['user_id']
         future = datetime.now(timezone.utc) + timedelta(hours=1)
@@ -162,8 +166,68 @@ class ApiTests(unittest.TestCase):
             status, headers, _ = self.request('GET', '/internships', token=invalid)
             self.assertEqual(status, 401)
             self.assertEqual(headers[b'www-authenticate'], b'Bearer')
-        forged = jwt.encode({'user_id': user_id, 'exp': future}, 'different-test-signing-key', algorithm='HS256')
+        forged = jwt.encode({'user_id': user_id, 'exp': future}, 'different-test-signing-key-not-for-production', algorithm='HS256')
         self.assertEqual(self.request('GET', '/internships', token=forged)[0], 401)
+
+    def test_token_contract_and_legacy_compatibility(self):
+        import jwt
+        before = int(datetime.now(timezone.utc).timestamp())
+        token = self.account('alice')
+        after = int(datetime.now(timezone.utc).timestamp())
+        payload = jwt.decode(token, self.main.SECRET_KEY, algorithms=['HS256'], options={'require': ['exp']})
+        self.assertIsInstance(token, str)
+        self.assertEqual(jwt.get_unverified_header(token)['alg'], 'HS256')
+        self.assertEqual(set(payload), {'user_id', 'exp'})
+        self.assertEqual(type(payload['user_id']), int)
+        self.assertGreaterEqual(payload['exp'], before + 86400)
+        self.assertLessEqual(payload['exp'], after + 86400)
+
+        # Generated with python-jose 3.5.0 and our public test key, not real credentials.
+        fixture = json.loads((Path(__file__).parent / 'fixtures/legacy_hs256.json').read_text())
+        legacy = fixture['token']
+        self.assertEqual(self.main.get_current_user(legacy), payload['user_id'])
+        application = {'company': 'Legacy session', 'role': 'Intern', 'status': 'Applied', 'application_date': '2026-10-23'}
+        self.assertEqual(self.request('POST', '/internships', application, legacy)[0], 200)
+        self.assertEqual(len(self.request('GET', '/internships', token=token)[2]), 1)
+        other = self.account('bob')
+        self.assertEqual(self.request('GET', '/internships', token=other)[2], [])
+
+    def test_malformed_tokens_claims_and_disallowed_algorithms(self):
+        # Independent signing lets us exercise malformed signed JSON and headers.
+        # All keys/tokens here are synthetic; no database account or .env is used.
+        def part(value):
+            return base64.urlsafe_b64encode(json.dumps(value, separators=(',', ':')).encode()).rstrip(b'=')
+
+        def signed(payload, header=None, digest=hashlib.sha256):
+            message = part({'alg': 'HS256', 'typ': 'JWT'} if header is None else header) + b'.' + part(payload)
+            signature = hmac.new(self.main.SECRET_KEY.encode(), message, digest).digest()
+            return (message + b'.' + base64.urlsafe_b64encode(signature).rstrip(b'=')).decode()
+
+        future = int(datetime.now(timezone.utc).timestamp()) + 3600
+        valid = {'user_id': 1, 'exp': future}
+        tokens = ['invalid', 'a.b.c', 'a.b', 'a.b.c.d', '...']
+        for value in (None, True, False, 0, -1, 1.5, '1', [], {}):
+            tokens.append(signed({**valid, 'user_id': value}))
+        for value in (None, 'not-a-date', [], {}, float('inf'), float('nan'), 0):
+            tokens.append(signed({**valid, 'exp': value}))
+        tokens.extend([signed({'user_id': 1}), signed({'exp': future}), signed([]), signed(None)])
+        for claim in ('nbf', 'iat'):
+            for value in (None, [], {}, 'invalid', future):
+                tokens.append(signed({**valid, claim: value}))
+        for algorithm, digest in [('HS384', hashlib.sha384), ('HS512', hashlib.sha512)]:
+            tokens.append(signed(valid, {'alg': algorithm}, digest))
+        for header in ({'alg': 'none'}, {'alg': 'RS256'}, {'alg': []}, {'alg': None}, {}, []):
+            tokens.append(signed(valid, header))
+        tokens.append((part({'alg': 'none'}) + b'.' + part(valid) + b'.').decode())
+        header, payload, signature = signed(valid).split('.')
+        tokens.append('.'.join([header, part({**valid, 'user_id': 2}).decode(), signature]))
+        tokens.append('.'.join([header, payload, ('A' if signature[0] != 'A' else 'B') + signature[1:]]))
+        for index, token in enumerate(tokens):
+            with self.subTest(case=index):
+                status, headers, _ = self.request('GET', '/internships', token=token)
+                self.assertEqual(status, 401)
+                self.assertEqual(headers[b'www-authenticate'], b'Bearer')
+                self.assertEqual(headers[b'access-control-allow-origin'], b'https://test-frontend.example')
 
     def test_validation_and_persisted_optional_fields(self):
         token = self.account('alice')

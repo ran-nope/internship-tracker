@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
-from jose import jwt, JWTError
+import jwt
+from jwt.exceptions import InvalidTokenError
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -123,7 +124,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
             token,
             SECRET_KEY,
             algorithms=[ALGORITHM],
-            options={"require_exp": True},
+            options={"require": ["exp"]},
         )
 
         user_id = payload.get("user_id")
@@ -137,7 +138,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 
         return user_id
 
-    except JWTError:
+    except InvalidTokenError:
         raise HTTPException(
             status_code=401,
             detail="Invalid or expired token. Please log in again.",

@@ -1,5 +1,10 @@
 # Phase 2 deployment preparation — 24 October 2026
 
+> This report records preparation of the Phase 2 commit. A subsequent local,
+> uncommitted PyJWT migration removes the backend advisories listed below; see
+> [JWT_MIGRATION.md](JWT_MIGRATION.md) for its changes, current audit, tests, and
+> clean-build requirement. Neither change has been pushed or deployed.
+
 This release combines the Phase 2 workspace, public landing page, authentication
 design refinement, and the local development CORS fix. It is prepared for a local
 commit only. Pushing and deployment require separate approval.

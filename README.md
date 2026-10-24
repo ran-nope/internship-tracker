@@ -235,3 +235,12 @@ security considerations, visual checks, and validation results.
 See [DEPLOYMENT_PREPARATION.md](DEPLOYMENT_PREPARATION.md) for the combined release
 checks, localhost:5174 CORS fix, static-host routing, deployment requirements, and
 existing backend dependency advisory assessment.
+
+## JWT backend dependencies
+
+Authentication now uses pinned PyJWT with an explicit HS256 allowlist, required
+expiration, and the existing positive-integer user ID checks. The key, 24-hour
+token lifetime, and login API are unchanged; valid tokens issued by the previous
+library remain compatible. See [JWT_MIGRATION.md](JWT_MIGRATION.md) for security
+advisories, regression results, compatibility details, and the requirement to
+deploy into a clean dependency environment after approval.
