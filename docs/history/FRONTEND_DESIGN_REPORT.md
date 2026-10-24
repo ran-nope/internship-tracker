@@ -1,3 +1,6 @@
+> Archived implementation report. Statements about deployment status and test results
+> describe the original verification, not current hosting state. See [current documentation](../README.md).
+
 # Frontend design refinement
 
 > Historical implementation snapshot. For the latest release checks, CORS fix,

@@ -1,7 +1,10 @@
+> Archived implementation report. Statements about deployment status and test results
+> describe the original verification, not current hosting state. See [current documentation](../README.md).
+
 # HS256 JWT dependency migration
 
-Prepared locally on 24 October 2026. No commit, push, deployment, credential
-change, or production database access was performed for this migration.
+Prepared locally on 24 October 2026. At the time of this report, no commit, push, deployment, credential
+change, or production database access had been performed for this migration.
 
 ## Decision and advisory review
 

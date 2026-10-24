@@ -1,0 +1,115 @@
+{
+  "description": "Fictional documentation dataset only. No real people, employers, openings, offers, or outcomes are represented.",
+  "display_date": "2026-10-24T12:00:00Z",
+  "username": "portfolio-demo",
+  "applications": [
+    {
+      "company": "Northstar Studio",
+      "role": "Product Design Intern",
+      "status": "Interview",
+      "application_date": "2026-10-18",
+      "location": "Remote",
+      "job_url": "https://example.com/internships/demo-1",
+      "notes": "Prepare a walkthrough of the application dashboard."
+    },
+    {
+      "company": "Orbit Labs",
+      "role": "Software Engineering Intern",
+      "status": "Applied",
+      "application_date": "2026-10-16",
+      "location": "Bengaluru",
+      "job_url": "https://example.com/internships/demo-2",
+      "notes": "Applied with a React and FastAPI portfolio project."
+    },
+    {
+      "company": "Forma",
+      "role": "Frontend Development Intern",
+      "status": "Offer",
+      "application_date": "2026-10-12",
+      "location": "Remote",
+      "job_url": "https://example.com/internships/demo-3",
+      "notes": "Review the fictional offer details and team expectations."
+    },
+    {
+      "company": "Vector Grove",
+      "role": "AI Engineering Intern",
+      "status": "Interview",
+      "application_date": "2026-10-05",
+      "location": "Hyderabad",
+      "job_url": "https://example.com/internships/demo-4",
+      "notes": "Review model evaluation and Python API design concepts."
+    },
+    {
+      "company": "Cedar Metrics",
+      "role": "Data Science Intern",
+      "status": "Selected",
+      "application_date": "2026-09-19",
+      "location": "Pune",
+      "job_url": "https://example.com/internships/demo-5",
+      "notes": "Selected for a fictional winter internship cohort."
+    },
+    {
+      "company": "Harbor Stack",
+      "role": "Backend Engineering Intern",
+      "status": "Applied",
+      "application_date": "2026-09-03",
+      "location": "Remote",
+      "job_url": "https://example.com/internships/demo-6",
+      "notes": "Highlight SQLAlchemy ownership checks and API validation."
+    },
+    {
+      "company": "Juniper Vision",
+      "role": "Machine Learning Intern",
+      "status": "Interview",
+      "application_date": "2026-08-20",
+      "location": "Bengaluru",
+      "job_url": "https://example.com/internships/demo-7",
+      "notes": "Prepare to discuss dataset leakage and reproducibility."
+    },
+    {
+      "company": "Maple Streams",
+      "role": "Data Engineering Intern",
+      "status": "Applied",
+      "application_date": "2026-08-06",
+      "location": "Chennai",
+      "job_url": "https://example.com/internships/demo-8",
+      "notes": "Review SQL joins, ETL testing, and data quality checks."
+    },
+    {
+      "company": "Pebble Systems",
+      "role": "Software Engineering Intern",
+      "status": "Applied",
+      "application_date": "2026-07-23",
+      "location": "Remote",
+      "job_url": "https://example.com/internships/demo-9",
+      "notes": "Application for a fictional part-time platform role."
+    },
+    {
+      "company": "Lumen Research Works",
+      "role": "Research Engineering Intern",
+      "status": "Rejected",
+      "application_date": "2026-07-08",
+      "location": "Delhi",
+      "job_url": "https://example.com/internships/demo-10",
+      "notes": "Closed application; retain notes for future preparation."
+    },
+    {
+      "company": "Willow Insights",
+      "role": "Data Science Intern",
+      "status": "Applied",
+      "application_date": "2026-06-11",
+      "location": "Remote",
+      "job_url": "https://example.com/internships/demo-11",
+      "notes": "Applied for a fictional long-lead winter research program."
+    },
+    {
+      "company": "Atlas Fieldworks",
+      "role": "Platform Engineering Intern",
+      "status": "Applied",
+      "application_date": "2026-05-22",
+      "location": "Bengaluru",
+      "job_url": "https://example.com/internships/demo-12",
+      "notes": "Early application for a fictional winter placement."
+    }
+  ]
+}

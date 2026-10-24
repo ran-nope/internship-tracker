@@ -1,3 +1,6 @@
+> Archived implementation report. Statements about deployment status and test results
+> describe the original verification, not current hosting state. See [current documentation](../README.md).
+
 # Phase 1 testing report
 
 No production accounts or records were created, updated, or deleted. No changes

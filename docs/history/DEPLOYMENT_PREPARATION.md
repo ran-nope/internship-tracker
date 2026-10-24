@@ -1,3 +1,6 @@
+> Archived implementation report. Statements about deployment status and test results
+> describe the original verification, not current hosting state. See [current documentation](../README.md).
+
 # Phase 2 deployment preparation — 24 October 2026
 
 > This report records preparation of the Phase 2 commit. A subsequent local,

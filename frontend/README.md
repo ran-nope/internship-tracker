@@ -1,16 +1,14 @@
-# React + Vite
+# Internship Tracker frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React/Vite client for the Internship Tracker API. Start with the [project README](../README.md) and [local development guide](../docs/DEVELOPMENT.md).
 
-Currently, two official plugins are available:
+- `src/components/`: landing, authentication, workspace, charts, forms, and lists.
+- `src/hooks/`: authentication/CRUD lifecycle, theme, and hash navigation.
+- `src/utils/`: pure analytics/filtering functions and route validation.
+- `src/api.js`: API base URL handling, response validation, and session errors.
+- `e2e/`: browser regression and accessibility tests.
+- `screenshots/`: manual documentation capture against disposable local PostgreSQL.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Install with `npm ci`, run with `npm run dev`, and verify with `npm test`, `npm run lint`, and `npm run build`. Copy `.env.example` to `.env.local` for the local API URL. Vite environment variables are public build-time values, never a place for credentials.
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+[Testing and screenshot prerequisites](../docs/TESTING.md) · [Architecture](../docs/ARCHITECTURE.md) · [Font license](src/assets/fonts/OFL.txt)

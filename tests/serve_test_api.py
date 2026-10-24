@@ -9,6 +9,9 @@ import tempfile
 
 
 def main():
+    frontend_port = int(os.environ.get('TEST_FRONTEND_PORT', '5174'))
+    if not 1024 <= frontend_port <= 65535:
+        raise ValueError('TEST_FRONTEND_PORT must be between 1024 and 65535')
     # libpq environment settings must never redirect disposable test connections.
     for name in list(os.environ):
         if name.startswith('PG'):
@@ -38,7 +41,7 @@ def main():
             connection.close()
             os.environ['DATABASE_URL'] = f'postgresql://phase1_test_admin@127.0.0.1:{port}/internship_tracker_test?hostaddr=127.0.0.1'
             os.environ['SECRET_KEY'] = 'isolated-browser-test-secret-not-for-production'
-            os.environ['CORS_ORIGINS'] = 'http://127.0.0.1:5174'
+            os.environ['CORS_ORIGINS'] = f'http://127.0.0.1:{frontend_port}'
             sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
             import uvicorn
             uvicorn.run('main:app', host='127.0.0.1', port=8001, log_level='warning', access_log=False)

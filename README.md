@@ -1,246 +1,149 @@
 # Internship Tracker
 
-React/Vite frontend (`frontend/src/App.jsx`), FastAPI endpoints and JWT authentication
-(`main.py`), SQLAlchemy connection/session configuration (`database.py`), and user
-and internship tables (`models.py`). PostgreSQL is the deployment database.
+A full-stack application for organizing internship applications, tracking progress, and keeping the details of a job search in one place. Built with React, FastAPI, PostgreSQL, and JWT authentication.
 
-## Configuration
+**[Open the live application](https://internship-tracker-seven-alpha.vercel.app)** · [Engineering case study](docs/CASE_STUDY.md) · [Architecture](docs/ARCHITECTURE.md) · [Local setup](docs/DEVELOPMENT.md)
 
-Use `.env.example` as a template for backend configuration. Keep real `.env` files
-out of source control. The API requires `DATABASE_URL` and `SECRET_KEY`.
-`CORS_ORIGINS` adds comma-separated trusted frontend origins to the existing
-localhost and Vercel allowlist. Use origins only (scheme and hostname, plus a port
-for local development), not page paths. Do not allow all Vercel subdomains.
+![Application dashboard showing a synthetic internship search, current statuses, and application trends](docs/screenshots/dashboard.jpg)
 
-For Vercel, use `frontend` as the project root, `npm run build` as the build command,
-and `dist` as the output directory. Set `VITE_API_URL` to
-`https://internship-tracker-ak3q.onrender.com` in each relevant Vercel environment.
-Vite embeds this value at build time, so changing it requires a new build.
-A production build without the variable uses this Render address; development
-uses `http://127.0.0.1:8000`. URL joining trims whitespace and boundary slashes.
+*Actual application screenshots captured locally with one fictional dataset. The application does not contain AI recommendations or machine-learning models; AI and data science appear only as example internship roles.*
 
-Run the backend with `uvicorn main:app --host 0.0.0.0 --port "$PORT"` on Render.
-Keep Render's existing database credentials and JWT secret; changing the JWT
-secret invalidates existing tokens. No database migration is needed for this patch.
+## Why this project
 
-## Validation
+An internship search creates scattered job links, application dates, status updates, and notes. Internship Tracker brings them into a private workspace with searchable records and a clear view of application activity. It demonstrates how a React interface, authenticated REST API, relational persistence, and automated regression tests fit together in a deployed product.
 
+## Explore the application
+
+| Public landing page | Application management |
+| --- | --- |
+| ![Landing page and clearly labeled illustrative dashboard preview](docs/screenshots/landing.jpg) | ![Searchable application table with fictional software engineering, AI, and data science roles](docs/screenshots/applications.jpg) |
+
+<details>
+<summary>More screenshots: authentication, analytics, dark mode, and mobile</summary>
+
+| Login | Analytics |
+| --- | --- |
+| ![Login page with empty credential fields](docs/screenshots/login.jpg) | ![Application-date trend and current-status breakdown from the same fictional dataset](docs/screenshots/analytics.jpg) |
+
+![Dashboard in dark mode using the same fictional records](docs/screenshots/dark-mode.jpg)
+
+<img src="docs/screenshots/mobile.jpg" alt="Mobile application cards with fictional internship records" width="320">
+
+</details>
+
+[View the complete gallery and dataset provenance](docs/screenshots/README.md). There is no shared demo login. The public landing page is accessible without an account; the authenticated workspace requires signup/login. A separate demo experience is [recommended, not implemented](docs/DEMO_EXPERIENCE.md).
+
+## Implemented features
+
+- **Authentication and ownership:** bcrypt password hashing, PyJWT HS256 tokens with required expiration, protected CRUD endpoints, and API queries scoped to the authenticated user.
+- **Application management:** create, edit, and delete company/role records with status, date, location, job URL, and notes; changes persist in PostgreSQL.
+- **Search and organization:** combined company/role/location search, status filtering, newest/oldest/company sorting, reset, and paginated table/card views.
+- **Analytics:** total applications, current interview/offer counts, selection rate, status distribution, and application-date trends using Recharts. All calculations use the logged-in user's API response.
+- **Responsive interface:** separate public landing and authentication pages, collapsible navigation, mobile cards, light/dark themes, loading states, empty states, and notifications.
+- **Resilience and accessibility:** readable API errors, failed-load retry, stale-session protection, keyboard navigation, focus handling, and chart failure recovery that preserves CRUD access.
+
+Metrics describe the current records, not historical status transitions or predicted outcomes. [Analytics definitions](docs/ARCHITECTURE.md#analytics).
+
+## Technology
+
+| Layer | Implementation |
+| --- | --- |
+| Frontend | React, Vite, Recharts, Lucide icons, CSS, self-hosted Manrope |
+| Backend | FastAPI, Pydantic, SQLAlchemy, PyJWT, bcrypt |
+| Persistence | PostgreSQL in deployment; isolated SQLite for backend tests |
+| Verification | Python unittest, Node test runner, Playwright, Axe, ESLint |
+| Hosting | Vercel frontend and Render API |
+
+## System architecture
+
+```mermaid
+flowchart TD
+    User[User browser] --> Frontend[React + Vite frontend on Vercel]
+    Frontend -->|HTTPS JSON / Bearer JWT| API[FastAPI REST API on Render]
+    API -->|SQLAlchemy / psycopg2| DB[(PostgreSQL)]
 ```
+
+The browser never connects directly to PostgreSQL. The API derives ownership from a verified JWT, rather than trusting a user ID supplied in a request. [Authentication flow, endpoints, and database design](docs/ARCHITECTURE.md).
+
+## Run locally
+
+Use Python 3.14, Node 24, and a local PostgreSQL installation for the documented setup.
+
+```bash
+git clone https://github.com/ran-nope/internship-tracker.git
+cd internship-tracker
+python3.14 -m venv venv
+source venv/bin/activate
+python -m pip install -r requirements.txt
+cp .env.example .env
+cp frontend/.env.example frontend/.env.local
+npm --prefix frontend ci
+```
+
+Create a local database, then replace the backend placeholders in `.env`:
+
+```dotenv
+DATABASE_URL=postgresql://USER:PASSWORD@127.0.0.1:5432/DATABASE
+SECRET_KEY=replace-with-a-long-random-secret
+CORS_ORIGINS=http://localhost:5173
+```
+
+The frontend example uses `VITE_API_URL=http://127.0.0.1:8000`. Never put secrets in `VITE_*` variables; they become public browser code.
+
+Start the backend and frontend in separate terminals:
+
+```bash
+# Repository root, with venv activated
+uvicorn main:app --host 127.0.0.1 --port 8000
+```
+
+```bash
+npm --prefix frontend run dev -- --host localhost --port 5173 --strictPort
+```
+
+Open `http://localhost:5173`. [Complete database setup, environment reference, and troubleshooting](docs/DEVELOPMENT.md).
+
+## Tests and checks
+
+From the repository root:
+
+```bash
 venv/bin/python -B -m unittest discover -s tests -v
-node --test tests/api.test.mjs
-cd frontend
-npm run lint
-npm run build
+npm --prefix frontend test
+npm --prefix frontend run lint
+npm --prefix frontend run build
+python3 scripts/check_secrets.py
+python3 scripts/check_docs.py
 ```
 
-Backend tests must run in a fresh process as shown: they replace database and JWT
-settings before importing the application and use SQLite entirely in memory.
-They cover signup, login, duplicate usernames, invalid credentials/tokens,
-authenticated CRUD, account isolation, Unicode password limits, URL validation,
-allowed/rejected CORS preflights, and CORS headers on server errors. PostgreSQL
-connection settings and migrations are not exercised by these tests.
+Backend tests use in-memory SQLite. Browser tests use a disposable PostgreSQL cluster and exercise signup/login, persistence, account isolation, analytics, responsive layouts, and accessibility. [Browser tests, dependency audits, CI scope, and latest local verification](docs/TESTING.md).
 
-## Deployment diagnosis (2026-10-23)
+The [CI workflow](.github/workflows/ci.yml) runs backend/frontend tests, ESLint, a build, and source-tree secret/documentation checks without production credentials. No CI success badge is shown before an actual hosted run.
 
-No production accounts or records were created or changed during diagnosis.
+## Deployment overview
 
-- Both supplied Vercel origins passed deployed login preflights with HTTP 200 and
-  the matching `Access-Control-Allow-Origin` header.
-- The branch alias `https://internship-tracker-git-master-kpc13.vercel.app`
-  redirected unauthenticated requests to Vercel login. Its app bundle could not be
-  inspected without deployment access. Review Vercel Deployment Protection if this
-  alias should be public; protection is separate from backend CORS.
-- `https://internship-tracker-seven-alpha.vercel.app` served the app publicly. Its
-  JavaScript bundle used the correct Render API address and already removed
-  trailing slashes. Double slashes were not present in that inspected configuration.
-- A credential-free empty login payload returned HTTP 422 with matching CORS
-  headers. An unauthenticated GET `/internships` returned HTTP 401 with matching
-  CORS headers. Successful production authentication was intentionally not tested.
+Vercel builds `frontend/` with `npm run build` and serves `dist/`. Render installs `requirements.txt` and starts `uvicorn main:app`. Database and signing-key settings belong only on the backend. Browser routes use fragments such as `/#/applications`, so direct links and refreshes do not require SPA rewrites. [Deployment reference](docs/DEPLOYMENT.md).
 
-These observations rule out a blanket CORS allowlist failure at inspection time.
-They do not establish the cause of a database-dependent production signup/login
-failure. If it persists, inspect the actual browser Request URL, status and
-response, and the corresponding Render traceback privately. Do not share tokens,
-passwords, connection strings, or request bodies. A backend 500 can look like a
-CORS failure when the error response lacks CORS headers.
+## Repository map
 
-The patch wraps the entire FastAPI application in CORS middleware, validates
-bcrypt's 72-byte UTF-8 limit before hashing/checking, handles signup uniqueness
-races, and displays structured API validation errors. It also prevents stale
-mutation responses from changing a new session, blocks form submission during
-initial loading/saving, and repairs desktop auth styles and dark-mode contrast.
-
-Other follow-ups: `create_all()` does not migrate existing tables; use migrations
-for future schema changes. `internships.user_id` currently lacks a database foreign
-key; introducing one requires an orphan-data audit and a migration. The OAuth2
-Swagger password-flow form does not match the JSON `/login` contract, so Swagger's
-Authorize flow needs a separate compatibility change if desired. None of those
-schema/auth-contract changes are included here.
-
-## Release verification
-
-Before pushing, review `git show --stat HEAD` and confirm the intended commit and
-branch in both hosting dashboards. A push to the configured deployment branch can
-trigger builds automatically. No database migration or data cleanup is part of
-this release.
-
-A history scan found a pre-rotation local PostgreSQL connection string and an
-older hardcoded JWT key in earlier commits. The local database password has since
-been rotated and its application connection verified. The Render JWT key has also
-been rotated, as confirmed by the operator. The historical database URL targeted
-local PostgreSQL; it was not evidence of a leaked Render database credential.
-Do not paste credentials into Git, logs, tickets, or chat. Removing secrets from
-current files does not remove historical exposure. History rewriting requires
-separate coordination and is not performed by this patch.
-
-Render configuration to check privately:
-
-- Repository `ran-nope/internship-tracker`, intended deployment branch `master`.
-- Backend root is the repository root; build `pip install -r requirements.txt`.
-- Start `uvicorn main:app --host 0.0.0.0 --port "$PORT"`.
-- `DATABASE_URL` points to the intended PostgreSQL database with valid rotated
-  credentials. Retain the existing JWT `SECRET_KEY` unless deliberately revoking
-  tokens. `CORS_ORIGINS` may include both supplied Vercel origins; both are already
-  included by default.
-- Confirm the expected commit becomes Live and inspect startup logs. Do not run
-  seed scripts, reset tables, or apply unrelated schema changes.
-
-Vercel configuration to check privately:
-
-- Repository and intended production branch match the release; root `frontend`,
-  build `npm run build`, output `dist`.
-- `VITE_API_URL=https://internship-tracker-ak3q.onrender.com` is set for Production
-  and any Preview branch being tested. A change requires a new build.
-- No database password, JWT signing key, or other secrets belong in `VITE_*`.
-- Confirm the same release commit is Ready and inspect which Domains are assigned
-  to it. A branch alias alone does not prove which deployment is production.
-- Review Deployment Protection for the branch alias; do not disable it without
-  deciding whether that deployment should be publicly accessible.
-
-After deployment, safe production smoke checks are GET `/` (200), unauthenticated
-GET `/internships` (401), and OPTIONS `/signup`, `/login`, `/internships` with the
-actual browser Origin and requested method/headers (200 with that exact allowed
-origin). The root endpoint alone does not prove database connectivity.
-
-For successful signup/login and full CRUD, use a Vercel staging deployment backed
-by a separate Render service and non-production database. Set its API URL and
-explicit CORS origin accordingly. In that environment:
-
-1. Sign up with a unique test username, then log in. Expect 200 and a dashboard.
-2. Add a clearly marked test internship with all optional fields. Refresh and
-   confirm it persists and appears once.
-3. Edit its status and notes; refresh and verify the saved values.
-4. Search/filter the record. Log out and back in to confirm persistence.
-5. Delete only that staging test record; refresh and confirm it remains absent.
-6. Confirm another staging account cannot see or change the first account's data.
-7. In browser Network tools, check that requests target the expected Render host,
-   use one slash at the path boundary, and authenticated calls include Bearer
-   authorization. Do not share token values or request passwords.
-
-Under the instruction to avoid production-record modifications, do not perform
-production signup or create/update/delete operations. A production login and
-read-only list check can be done manually with an existing account; do not change
-its records. Full production CRUD would require separate authorization for
-explicit disposable test data. The current local tests already exercise full CRUD
-against an in-memory database.
-
-## Phase 1 browser tests
-
-The browser suite runs against a brand-new disposable PostgreSQL cluster and a
-local Vite server. It never uses the database credentials in `.env` and never
-creates or changes production records. It requires PostgreSQL server tools
-(`pg_config`, `initdb`, `pg_ctl`), the existing backend virtual environment, and a
-Playwright-compatible Chromium browser. The temporary database uses an available
-loopback port and is stopped and removed when the test server exits normally.
-API and frontend test ports 8001 and 5174 must be free; tests refuse to reuse an
-existing server.
-
-```
-cd frontend
-npm ci
-npx playwright install chromium
-npm run test:e2e
+```text
+main.py                 FastAPI routes, validation, authentication, CORS
+database.py / models.py  SQLAlchemy connection and table definitions
+frontend/src/           React components, state hooks, API helper, analytics
+frontend/e2e/           Browser regression and accessibility tests
+frontend/screenshots/   Isolated documentation capture suite
+tests/                  Backend and frontend unit tests, disposable API harness
+scripts/                Redacted source scan and documentation link checks
+docs/                   Architecture, setup, case study, gallery, history
+.github/workflows/      Minimal verification workflow
 ```
 
-For an existing system Chromium installation, instead run:
+## Current limits and roadmap
 
-```
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/snap/bin/chromium npm run test:e2e
-```
+The current schema has no database foreign key on `internships.user_id`, and `create_all()` does not migrate existing tables. Before adding constraints, audit orphaned records and introduce reviewed, reversible migrations. JWTs are stored in localStorage; logout removes the browser token but does not revoke it server-side.
 
-The suite covers browser signup/login, CRUD persisted across reloads, logout and
-account isolation, search/filter behavior, network/HTTP/malformed-response errors,
-invalid-session handling, pending-delete controls, and responsive layouts at 320,
-375, 390, 768, and 1280 pixels. These are Chromium viewport checks, not a substitute
-for native Safari/Firefox or real-device testing. See `TEST_REPORT.md` for results
-and the separate read-only deployment observations.
+Planned improvements include migration tooling, authentication rate limiting and recovery, server-side pagination for larger datasets, application status history, and a clearly labeled frontend-only demo. These are future work, not shipped features. [Limitations and migration plan](docs/ARCHITECTURE.md#limitations-and-migrations).
 
-## Phase 2 workspace
+## License
 
-The frontend now provides an Overview and Applications workspace with a
-collapsible desktop sidebar, a keyboard-accessible mobile drawer, and light/dark
-appearance saved in the browser. Application data is never cached in browser
-storage; the existing token/username behavior is retained, and only visual
-preferences (theme and card/table choice) are added.
-
-Overview computes all-time totals from the authenticated `/internships` response.
-Interview and offer metrics count current statuses; Selected remains separate.
-Selection rate is Selected divided by total applications. List filters do not
-change overview totals. Trend ranges affect only the application-date chart and
-include zero months; all-time ranges use at most 24 grouped buckets. No status
-history or conversion-rate claims are inferred from current-status records.
-
-Applications supports combined company/role/location search, status filtering,
-application-date sorting (newest/oldest), company sorting, and reset. Results are
-paginated eight at a time. Desktop users can choose tables or cards; narrow
-screens use cards. All existing optional fields remain available through cards,
-row details, and the focused add/edit dialog. Saving/deleting locks conflicting
-actions; closing the dialog restores keyboard focus.
-
-Recharts loads in a separate bundle after login and is isolated by an error
-boundary so a chart download failure does not disable CRUD. Chart totals have
-text equivalents and trend data can be expanded as a table. Errors remain
-visible with retry where appropriate; successes use dismissible toast messages.
-
-Frontend responsibilities are split into `src/hooks/useTracker.js` (authentication
-and CRUD lifecycle), `src/utils/applications.js` (pure analytics/filtering/date
-logic), and focused components under `src/components`. The FastAPI endpoints,
-PostgreSQL schema, authentication contract, and hosting configuration are unchanged.
-
-Run the frontend calculation/API checks with `npm --prefix frontend test`, then
-run the full browser suite as described above. Phase 2 adds analytics, sorting,
-reset, pagination, theme, mobile navigation, focus restoration, failed-load,
-chart-failure, and Axe accessibility regressions. See `PHASE2_REPORT.md` for the
-final local validation and limitations. No production test data is needed.
-
-## Public site and design refinement
-
-Anonymous visitors now enter a separate public landing page. Use `/#/login` and
-`/#/signup` for authentication, `/#/overview` for the authenticated dashboard, and
-`/#/applications` for application management. These hash routes work with the
-existing Vercel setup without new rewrites. Navigation supports back/forward and
-refresh; protected routes preserve an allowlisted login return destination.
-
-Landing, authentication, and workspace share a warm paper/graphite/iris design
-system and a self-hosted Manrope font. The public dashboard preview is explicitly
-illustrative and never uses account data. Real analytics and CRUD remain available
-only in the authenticated workspace. No new npm dependency was required for this
-refinement. Font licensing is included under `frontend/src/assets/fonts/`.
-
-The public navigation and accessibility browser scenarios supplement the original
-Phase 1/2 regressions. Run all browser tests with `npm --prefix frontend run test:e2e` and the frontend calculation, API-helper, and navigation unit suites with
-`npm --prefix frontend test`. See `FRONTEND_DESIGN_REPORT.md` for route behavior,
-security considerations, visual checks, and validation results.
-
-See [DEPLOYMENT_PREPARATION.md](DEPLOYMENT_PREPARATION.md) for the combined release
-checks, localhost:5174 CORS fix, static-host routing, deployment requirements, and
-existing backend dependency advisory assessment.
-
-## JWT backend dependencies
-
-Authentication now uses pinned PyJWT with an explicit HS256 allowlist, required
-expiration, and the existing positive-integer user ID checks. The key, 24-hour
-token lifetime, and login API are unchanged; valid tokens issued by the previous
-library remain compatible. See [JWT_MIGRATION.md](JWT_MIGRATION.md) for security
-advisories, regression results, compatibility details, and the requirement to
-deploy into a clean dependency environment after approval.
+No project-wide license has been selected. This repository does not currently grant an open-source license for the application. The bundled Manrope font has its own [SIL Open Font License](frontend/src/assets/fonts/OFL.txt); that license applies to the font, not the project.

@@ -11,3 +11,24 @@ frontend/dist/
 .aws/
 .vercel/
 .venv/
+
+# Local databases, dumps, and generated verification output
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+*.dump
+*.sql.gz
+*.sql.bak
+.pytest_cache/
+.coverage
+htmlcov/
+.artifacts/
+/backups/
+/dumps/

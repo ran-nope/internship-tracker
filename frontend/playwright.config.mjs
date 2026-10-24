@@ -1,13 +1,18 @@
 import { defineConfig } from '@playwright/test'
 import { fileURLToPath } from 'node:url'
 
+const frontendPort = Number(process.env.TEST_FRONTEND_PORT || 5174)
+if (!Number.isInteger(frontendPort) || frontendPort < 1024 || frontendPort > 65535)
+  throw new Error('TEST_FRONTEND_PORT must be an integer from 1024 to 65535')
+const frontendUrl = `http://127.0.0.1:${frontendPort}`
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
   workers: 1,
   reporter: 'list',
   use: {
-    baseURL: 'http://127.0.0.1:5174',
+    baseURL: frontendUrl,
     headless: true,
     launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
       ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
@@ -22,11 +27,12 @@ export default defineConfig({
       url: 'http://127.0.0.1:8001/',
       timeout: 60000,
       reuseExistingServer: false,
+      env: { TEST_FRONTEND_PORT: String(frontendPort) },
       gracefulShutdown: { signal: 'SIGTERM', timeout: 10000 },
     },
     {
-      command: 'npm run dev -- --host 127.0.0.1 --port 5174 --strictPort',
-      url: 'http://127.0.0.1:5174',
+      command: `npm run dev -- --host 127.0.0.1 --port ${frontendPort} --strictPort`,
+      url: frontendUrl,
       env: { VITE_API_URL: 'http://127.0.0.1:8001' },
       reuseExistingServer: false,
     },
