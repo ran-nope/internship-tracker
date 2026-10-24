@@ -24,6 +24,7 @@ PATTERNS = {
 # Exact values and paths only. No blanket exclusions for tests or documentation.
 TEST_LITERALS = {
     ('tests/test_api.py', b'isolated-test-secret-not-for-production'),
+    ('tests/test_migrations.py', b'isolated-test-secret-not-for-production'),
     ('frontend/e2e/phase1.spec.mjs', b'isolated-browser-test-password'),
     ('frontend/e2e/phase2.spec.mjs', b'isolated-phase2-browser-password'),
     ('frontend/e2e/public.spec.mjs', b'isolated-public-navigation-password'),

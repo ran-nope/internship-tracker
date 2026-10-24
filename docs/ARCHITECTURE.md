@@ -49,12 +49,13 @@ sequenceDiagram
     UI->>UI: Store token in localStorage
     UI->>API: Request with Authorization Bearer token
     API->>API: Verify signature, required exp, positive integer user_id
+    API->>DB: Confirm referenced user exists
     API->>DB: Query scoped to verified user_id
     DB-->>API: Owned records
     API-->>UI: JSON response
 ```
 
-PyJWT signs `user_id` and `exp` using the backend `SECRET_KEY`. Tokens last 24 hours. Decoding explicitly allows only HS256, requires expiration, and rejects invalid signatures or claims with HTTP 401 and a Bearer challenge. User IDs must be positive integers; booleans and numeric strings are rejected. The application does not derive the accepted algorithm from an untrusted token header.
+PyJWT signs `user_id` and `exp` using the backend `SECRET_KEY`. Tokens last 24 hours. Decoding explicitly allows only HS256, requires expiration, and rejects invalid signatures or claims with HTTP 401 and a Bearer challenge. User IDs must be positive integers; booleans and numeric strings are rejected. Protected requests also verify the user still exists, rejecting missing-user tokens with HTTP 401. The application does not derive the accepted algorithm from an untrusted token header.
 
 Passwords are hashed with bcrypt. The API checks the 72-byte UTF-8 limit before hashing, enforces unique usernames, and handles duplicate-signup races. Signup and login accept JSON, not an OAuth password-form body. The Swagger OAuth2 “Authorize” form therefore does not match this custom login contract; API clients should obtain a token from JSON `/login` and send the Bearer header themselves.
 
@@ -79,7 +80,7 @@ An update/delete for another user's record returns 404. Client-supplied ownershi
 | `users` | Integer primary-key `id`; unique non-null `username`; non-null `password` containing a bcrypt hash |
 | `internships` | Integer primary-key `id`; company, role, status, application date, integer `user_id`; optional location, job URL, notes |
 
-`user_id` is the logical association between the tables. **There is currently no database foreign-key constraint or ORM relationship enforcing it.** API queries enforce ownership. JWT verification does not separately query whether the referenced user still exists; the application currently has no user-deletion endpoint. See the migration requirements below before adding one.
+`user_id` has a named foreign-key declaration referencing `users.id` with `ON DELETE RESTRICT`, plus an owner index. Alembic installs the FK as `NOT VALID`, then validates historical rows in a separate revision. No ORM delete cascade or user-deletion endpoint exists. API ownership filters and missing-user JWT checks remain necessary: an FK alone does not enforce cross-user authorization. These declarations describe the final local schema; **production migration status is unknown and unchanged by this implementation**. See the [baseline and migration runbook](DATABASE_MIGRATIONS.md).
 
 Application statuses are Applied, Assessment, Interview, Offer, Selected, Rejected, and Withdrawn. Allowed statuses and string limits are enforced by application validation, not by database enum/check constraints. SQLAlchemy `String` columns do not currently declare those lengths.
 
@@ -101,18 +102,20 @@ List filters do not change overview totals. Search, sorting, and eight-record pa
 | --- | --- | --- |
 | Local development | Vite 5173 → loopback API 8000 | Developer-created local PostgreSQL |
 | Backend unit tests | Direct ASGI requests | In-memory SQLite, synthetic key/accounts |
-| Browser tests and screenshots | Vite 5174 (or override) → API 8001 | New temporary PostgreSQL cluster; synthetic records |
+| Browser tests and screenshots | Vite 5174 (or override) → API 8001 | New temporary PostgreSQL cluster, explicitly migrated by test harness; synthetic records |
+| Migration/API integration tests | Direct disposable-cluster connections | Frozen populated legacy fixture → verified baseline → incremental migrations |
 | Production | Vercel → Render over HTTPS | Deployment PostgreSQL; private backend settings |
 
 `DATABASE_URL` and `SECRET_KEY` belong only to the backend. `CORS_ORIGINS` adds trusted browser origins. `VITE_API_URL` is public and embedded at build time. [Configuration reference](DEVELOPMENT.md).
 
 ## Limitations and migrations
 
-- `Base.metadata.create_all()` runs when the API is imported. It creates missing tables but does not upgrade an existing schema. Do not treat a code change to `models.py` as a migration.
-- Adding a foreign key requires an orphan-record audit, explicit deletion/update policy, a reviewed migration tool such as Alembic, staging verification, and backup/rollback planning. Indexing `internships.user_id` should be evaluated alongside query plans as data grows. No production audit or migration has been run as part of this documentation work.
+- Application startup performs no DDL. Alembic revisions are manual operator operations; `create_all()` is used only in isolated SQLite unit-test setup.
+- Existing databases must pass schema preflight before the exact legacy baseline is stamped. Orphans are preserved and block the final FK-validation revision. Production audit, backup, baselining, migration, and deployment require separate approval. [Runbook and stopping conditions](DATABASE_MIGRATIONS.md).
+- The index/FK address ownership integrity; status/string rules remain application-enforced. No database row-level security is installed. Privileged SQL can still change ownership, so roles and operational access need separate review.
 - JWT storage in localStorage leaves tokens accessible to JavaScript; React text escaping is not a complete XSS defense. Logout clears the local token but does not revoke it at the server. There are no refresh tokens, server-side revocation, password recovery, or authentication rate limits.
 - API lists are unpaginated, and charts/search operate on the complete response. Larger datasets may need server-side pagination/filtering and dedicated aggregates.
 - There is no persisted status-event history. Historical conversion or time-in-stage analytics would need new tables and carefully defined events.
-- Tests cover SQLite API behavior and disposable PostgreSQL browser flows, not production load, multi-instance deployment, disaster recovery, or all native browsers.
+- Tests cover SQLite API behavior, disposable PostgreSQL migrations/API/browser flows, populated-data preservation, constraint enforcement, lock failure, and index recovery. Production load, actual backup restore, multi-instance deployment, and all native browsers remain outside this verification.
 
 [Back to documentation](README.md).

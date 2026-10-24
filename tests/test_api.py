@@ -24,12 +24,16 @@ class ApiTests(unittest.TestCase):
             'DATABASE_URL': 'sqlite://',
             'SECRET_KEY': 'isolated-test-secret-not-for-production',
             'CORS_ORIGINS': 'https://test-frontend.example/',
+            'PYTHON_DOTENV_DISABLED': '1',
         })
         cls.environment.start()
-        from sqlalchemy import create_engine
+        from sqlalchemy import create_engine, event
         from sqlalchemy.pool import StaticPool
         database = importlib.import_module('database')
         database.engine = create_engine('sqlite://', connect_args={'check_same_thread': False}, poolclass=StaticPool)
+        @event.listens_for(database.engine, 'connect')
+        def foreign_keys(connection, _):
+            connection.execute('PRAGMA foreign_keys=ON')
         database.SessionLocal.configure(bind=database.engine)
         cls.database = database
         cls.main = importlib.import_module('main')
@@ -185,7 +189,8 @@ class ApiTests(unittest.TestCase):
         # Generated with python-jose 3.5.0 and our public test key, not real credentials.
         fixture = json.loads((Path(__file__).parent / 'fixtures/legacy_hs256.json').read_text())
         legacy = fixture['token']
-        self.assertEqual(self.main.get_current_user(legacy), payload['user_id'])
+        with self.database.SessionLocal() as db:
+            self.assertEqual(self.main.get_current_user(legacy, db), payload['user_id'])
         application = {'company': 'Legacy session', 'role': 'Intern', 'status': 'Applied', 'application_date': '2026-10-23'}
         self.assertEqual(self.request('POST', '/internships', application, legacy)[0], 200)
         self.assertEqual(len(self.request('GET', '/internships', token=token)[2]), 1)
@@ -263,4 +268,57 @@ class ApiTests(unittest.TestCase):
         with self.assertRaises(self.main.HTTPException) as error:
             self.main.signup(self.main.User(username='race', password='test-password'), db)
         self.assertEqual(error.exception.status_code, 409)
+        db.rollback.assert_called_once()
+
+    def test_missing_user_token_is_rejected_on_every_protected_route(self):
+        token = self.main.create_token(987654)
+        application = {'company': 'Example', 'role': 'Intern', 'status': 'Applied', 'application_date': '2026-10-23'}
+        for method, path, body in [('GET', '/internships', None), ('POST', '/internships', application),
+                                   ('PUT', '/internships/1', application), ('DELETE', '/internships/1', None)]:
+            status, headers, _ = self.request(method, path, body, token)
+            self.assertEqual(status, 401)
+            self.assertEqual(headers[b'www-authenticate'], b'Bearer')
+            self.assertEqual(headers[b'access-control-allow-origin'], b'https://test-frontend.example')
+
+    def test_database_referential_integrity_and_restrict_delete(self):
+        from sqlalchemy.exc import IntegrityError
+        self.account('alice')
+        with self.database.SessionLocal() as db:
+            user = db.query(self.main.UserDB).one()
+            application = self.main.InternshipDB(company='Example', role='Intern', status='Applied',
+                application_date=datetime(2026, 10, 23).date(), user_id=9999)
+            db.add(application)
+            with self.assertRaises(IntegrityError):
+                db.commit()
+            db.rollback()
+            application.user_id = user.id
+            db.add(application)
+            db.commit()
+            db.delete(user)
+            with self.assertRaises(IntegrityError):
+                db.commit()
+            db.rollback()
+            self.assertEqual(db.query(self.main.InternshipDB).count(), 1)
+            self.assertEqual(db.query(self.main.UserDB).count(), 1)
+
+    def test_owner_fk_failure_rolls_back_without_hiding_other_errors(self):
+        from sqlalchemy.exc import IntegrityError
+        db = MagicMock()
+        original = Exception('synthetic database failure')
+        original.pgcode = '23503'
+        original.diag = type('Diagnostic', (), {'constraint_name': 'fk_internships_user_id_users'})()
+        db.commit.side_effect = IntegrityError('synthetic write', {}, original)
+        with self.assertRaises(self.main.HTTPException) as error:
+            self.main.commit_internship(db)
+        self.assertEqual(error.exception.status_code, 401)
+        db.rollback.assert_called_once()
+        db.reset_mock()
+        original.diag.constraint_name = 'other_constraint'
+        with self.assertRaises(IntegrityError):
+            self.main.commit_internship(db)
+        db.rollback.assert_called_once()
+        db.reset_mock()
+        db.commit.side_effect = RuntimeError('synthetic connection failure')
+        with self.assertRaises(RuntimeError):
+            self.main.commit_internship(db)
         db.rollback.assert_called_once()

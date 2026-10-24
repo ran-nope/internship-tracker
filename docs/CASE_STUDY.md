@@ -55,7 +55,7 @@ JWTs remain in localStorage. That choice preserves the existing client contract,
 
 The schema contains `users` and `internships`. Applications store company, role, status, date, ownership ID, location, URL, and notes. SQLAlchemy queries restrict list/update/delete operations by `user_id`, and cross-account modification attempts return 404.
 
-The schema currently lacks a foreign key on that ownership field. This is a database-integrity gap even though API ownership is tested. Startup `create_all()` creates missing tables but does not migrate them. Future migration work must audit orphaned rows, define deletion behavior, add constraints/indexes deliberately, and test rollback. The documentation work did not apply schema changes or inspect production records.
+The initial schema lacked a foreign key on ownership and relied on startup `create_all()`. Phase 2.6 replaces that behavior with a reviewed Alembic baseline, a concurrent owner index, an `ON DELETE RESTRICT` foreign key installed `NOT VALID`, and a separate validation revision. A read-only preflight gates baselining, while synthetic populated-legacy tests verify record preservation, orphan handling, lock failures, and recovery. Production schema and orphan counts remain unknown: migration execution requires a separately approved backup, rehearsal, and operator procedure. [Migration runbook](DATABASE_MIGRATIONS.md).
 
 ## Analytics implementation
 
@@ -75,6 +75,7 @@ Pure calculation tests check empty datasets, combined search and status filterin
 | A late mutation could complete after logout | Track session versions, discard stale results, and lock conflicting mutations | Pending-delete/logout browser regression |
 | Initial loading or failed reads could imply misleading analytics | Separate loading, loaded, and failed states; show unavailable values and retry | Failed-list browser regression |
 | Navigation and layout changes could regress authentication or editing | Preserve APIs and use backend, browser, keyboard, responsive, and Axe checks | Current tests and historical reports |
+| Existing deployments had no migration history or database ownership constraint | Verify the legacy schema before baselining; add index/FK/validation separately and preserve orphans | Disposable populated-legacy migration and API regressions |
 | Dependency advisories remained in an unused crypto stack | Migrate the narrowly used JWT functionality and verify token compatibility | PyJWT migration tests and dependency audit |
 
 The earlier CORS investigation recorded what specific requests proved and what they did not prove. A successful preflight did not establish database connectivity or identify every possible cause of an authentication failure. [Historical testing report](history/TEST_REPORT.md).
@@ -85,7 +86,7 @@ Backend tests call the ASGI application with in-memory SQLite and an explicit sy
 
 Browser scenarios create a new temporary PostgreSQL cluster. They verify the real UI/API integration, persistence across reloads, account switching, request failures, analytics, responsive layouts, and accessibility. Tests refuse to reuse an existing server. Documentation captures use the same isolation approach and one fictional dataset.
 
-CI runs the backend suite, frontend unit tests, ESLint, a production build, and practical source-secret/documentation checks. Current results and the limits of local validation are recorded in [verification](VERIFICATION.md), rather than embedded as permanent performance claims.
+CI runs the backend suite, disposable PostgreSQL migration/API tests, frontend unit tests, ESLint, a production build, and practical source-secret/documentation checks. Current results and the limits of local validation are recorded in [Phase 2.6 verification](PHASE2_6_VERIFICATION.md), rather than embedded as permanent performance claims.
 
 ## Lessons demonstrated by the implementation
 
@@ -97,6 +98,6 @@ CI runs the backend suite, frontend unit tests, ESLint, a production build, and 
 
 ## Future improvements
 
-Introduce reviewed database migrations and ownership constraints; add authentication rate limiting/recovery and evaluate token-storage alternatives; consider server-side pagination and query indexes; model status history before implementing time-in-stage analytics; extend browser/device coverage; and add a labeled frontend-only recruiter demo after a separate implementation decision.
+Complete the separately approved production baseline/migration rollout; add authentication rate limiting/recovery and evaluate token-storage alternatives; consider server-side pagination and query-plan-driven composite indexes; model status history before implementing time-in-stage analytics; extend browser/device coverage; and add a labeled frontend-only recruiter demo after a separate implementation decision.
 
-These are proposed improvements. The current work adds documentation, repository safeguards, screenshots, and CI without changing the application's production behavior.
+These are proposed improvements. Phase 2.5 added documentation, repository safeguards, screenshots, and CI; Phase 2.6 adds database reliability code and local verification. Neither local implementation implies an approved production schema change or deployment.

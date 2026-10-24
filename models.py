@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Date, Text, ForeignKey
-from database import Base
+from schema import Base
 
 
 class UserDB(Base):
@@ -18,7 +18,12 @@ class InternshipDB(Base):
     role = Column(String, nullable=False)
     status = Column(String, nullable=False)
     application_date = Column(Date, nullable=False)
-    user_id = Column(Integer, nullable=False)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", name="fk_internships_user_id_users", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
 
     location = Column(String, nullable=True)
     job_url = Column(String, nullable=True)

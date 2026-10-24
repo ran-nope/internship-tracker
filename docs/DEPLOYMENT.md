@@ -26,7 +26,9 @@ Both supplied Vercel hostnames are currently in the backend allowlist. A new pre
 
 ## Schema changes require a separate plan
 
-There is no migration runner. Startup `create_all()` is not a schema migration. Before adding foreign keys, constraints, or status-history tables, create a reviewed migration, audit existing data, define orphan/deletion behavior, test on staging, and prepare backups and rollback. Do not use seed scripts, table resets, or development fixtures against production.
+Alembic revisions and a manual operator wrapper now exist. Startup never creates or migrates tables. Existing production data requires a verified backup/restore rehearsal, schema preflight, the exact legacy baseline stamp, and explicit incremental upgrades. The index is built concurrently; the FK is installed `NOT VALID` with `ON DELETE RESTRICT` and validated separately only after zero orphans are confirmed. Do not run migrations in a startup hook, seed production, or reset tables.
+
+Read the [migration, backup, locking, stopping, and recovery runbook](DATABASE_MIGRATIONS.md) before release. No production schema was inspected or changed during implementation. The new application release remains compatible with the legacy populated schema; new empty environments must be migrated before serving requests. Coordinate branch-triggered auto-deploy before any approved push.
 
 ## Verification after an approved deployment
 

@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from database import engine, Base, SessionLocal
+from database import SessionLocal
 from models import InternshipDB, UserDB
 
 
@@ -51,8 +51,6 @@ for origin in CORS_ORIGINS:
     ):
         raise RuntimeError("CORS_ORIGINS must contain explicit HTTP(S) origins without paths")
 
-
-Base.metadata.create_all(bind=engine)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -118,7 +116,9 @@ def create_token(user_id: int):
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def get_current_user(token: str = Depends(oauth2_scheme)):
+def get_current_user(
+    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db),
+):
     try:
         payload = jwt.decode(
             token,
@@ -136,6 +136,13 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+        if db.query(UserDB.id).filter(UserDB.id == user_id).first() is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token. Please log in again.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
         return user_id
 
     except InvalidTokenError:
@@ -144,6 +151,29 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
             detail="Invalid or expired token. Please log in again.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+def commit_internship(db: Session):
+    """Rollback failed writes; only translate the ownership constraint violation."""
+    try:
+        db.commit()
+    except IntegrityError as error:
+        db.rollback()
+        original = error.orig
+        if (
+            getattr(original, "pgcode", None) == "23503"
+            and getattr(getattr(original, "diag", None), "constraint_name", None)
+            == "fk_internships_user_id_users"
+        ):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token. Please log in again.",
+                headers={"WWW-Authenticate": "Bearer"},
+            ) from None
+        raise
+    except Exception:
+        db.rollback()
+        raise
 
 
 # ---------------- HOME ----------------
@@ -308,7 +338,7 @@ def add_internship(
     )
 
     db.add(new_internship)
-    db.commit()
+    commit_internship(db)
     db.refresh(new_internship)
 
     return new_internship
@@ -348,7 +378,7 @@ def update_internship(
     existing.job_url = internship.job_url
     existing.notes = internship.notes
 
-    db.commit()
+    commit_internship(db)
     db.refresh(existing)
 
     return existing
@@ -378,7 +408,7 @@ def delete_internship(
         )
 
     db.delete(existing)
-    db.commit()
+    commit_internship(db)
 
     return {"message": "Internship deleted successfully"}
 

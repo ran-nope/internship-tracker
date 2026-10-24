@@ -6,6 +6,8 @@
 | [Architecture](ARCHITECTURE.md) | Deployment, authentication, endpoints, data model, analytics, limitations |
 | [Development](DEVELOPMENT.md) | Local installation, configuration, and startup |
 | [Testing](TESTING.md) | Test layers, CI, audits, and verification instructions |
+| [Database migrations](DATABASE_MIGRATIONS.md) | Manual baseline, upgrades, backup, locks, and recovery |
+| [Phase 2.6 verification](PHASE2_6_VERIFICATION.md) | Local migration/API reliability evidence and production gates |
 | [Deployment](DEPLOYMENT.md) | Vercel/Render requirements and safe verification |
 | [Screenshot gallery](screenshots/README.md) | Actual captures, shared synthetic dataset, reproduction |
 | [Demo recommendation](DEMO_EXPERIENCE.md) | Recruiter exploration options; no public demo account |

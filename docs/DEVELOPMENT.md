@@ -18,7 +18,7 @@ cp frontend/.env.example frontend/.env.local
 chmod 600 .env
 ```
 
-The backend requirements are pinned; `npm ci` uses the frontend lockfile. Python dependency upgrades should be reviewed separately from documentation work. The application package has no project-wide license; see the [README license note](../README.md#license).
+The backend requirements are pinned; `npm ci` uses the frontend lockfile. Alembic and its dependencies are included for explicit migrations. The application package has no project-wide license; see the [README license note](../README.md#license).
 
 ## Create a local PostgreSQL database
 
@@ -59,6 +59,22 @@ VITE_API_URL=http://127.0.0.1:8000
 
 The frontend example deliberately points to loopback. Configure the production URL separately in Vercel. All `VITE_*` values are included in browser assets. Backend environment values take precedence over `.env` values because the dotenv loader does not override existing variables.
 
+## Initialize or baseline the local schema
+
+Application startup no longer creates tables. Migration tools use only an explicitly supplied `MIGRATION_DATABASE_URL`; they never load `.env` or fall back to `DATABASE_URL`. Set this through a trusted environment/secret mechanism after confirming it identifies the intended local database. Do not put a credentialed URL into shell history or print it.
+
+For a **new empty local database**, run each revision explicitly:
+
+```bash
+venv/bin/python -B scripts/migrate.py upgrade 0001_legacy_baseline
+venv/bin/python -B scripts/migrate.py upgrade 0002_owner_index
+venv/bin/python -B scripts/migrate.py upgrade 0003_owner_foreign_key
+venv/bin/python -B scripts/migrate.py upgrade 0004_validate_owner_fk
+venv/bin/python -B scripts/schema_preflight.py --stage validated
+```
+
+For an **existing populated local database**, preserve it: back it up, run the unversioned legacy preflight, baseline only if it matches, then apply the incremental revisions. Do not run baseline CREATE TABLE operations against it. See the [migration runbook](DATABASE_MIGRATIONS.md). The Phase 2.6 verification process itself touches only newly created disposable clusters, not your regular local database.
+
 ## Start the application
 
 Terminal one, repository root:
@@ -74,7 +90,7 @@ Terminal two, repository root:
 npm --prefix frontend run dev -- --host localhost --port 5173 --strictPort
 ```
 
-Open `http://localhost:5173`. The local API greeting is at `http://127.0.0.1:8000/`. The API creates missing tables on startup; this does not migrate existing tables. [Database limitations](ARCHITECTURE.md#limitations-and-migrations).
+Open `http://localhost:5173`. The local API greeting is at `http://127.0.0.1:8000/`. The API performs no schema changes on startup. Missing schema must be addressed through the manual migration process. [Database migration procedures](DATABASE_MIGRATIONS.md).
 
 ## Common development issues
 

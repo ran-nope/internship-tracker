@@ -11,11 +11,23 @@ python3 scripts/check_secrets.py
 python3 scripts/check_docs.py
 ```
 
-The API suite overrides database/signing settings before importing the app and uses SQLite entirely in memory. It verifies authentication, validation, CRUD, ownership, CORS, invalid-token handling, and compatibility with the synthetic legacy JWT fixture. Repository-check tests verify the redacted scanner's detections and narrow fixture allowances.
+The API suite overrides database/signing settings before importing the app and uses SQLite entirely in memory with foreign-key enforcement enabled. It verifies authentication, validation, CRUD, ownership, CORS, invalid-token handling, and compatibility with the synthetic legacy JWT fixture. Repository-check tests verify the redacted scanner's detections and narrow fixture allowances.
 
 The secret script checks the current tracked/proposed files for sensitive filenames, private keys, common provider tokens, JWT literals, credentialed database URLs, and literal secret assignments. Matches report file/line/rule only. The legacy fixture is permitted by exact path and token hash; public test-password allowances are exact values in exact files. The scanner does not inspect Git history, detect every possible credential format, or replace GitHub secret scanning. Known historical exposure is documented in the [repository audit](REPOSITORY_AUDIT.md).
 
 The documentation script checks local Markdown/HTML links and heading anchors. It skips external URLs; those require separate network checks.
+
+## PostgreSQL migration and API regressions
+
+```bash
+RUN_POSTGRES_TESTS=1 venv/bin/python -B -m unittest discover -s tests -p test_migrations.py -v
+```
+
+Run this suite in a separate fresh process from the SQLite tests. It requires local PostgreSQL server tools and creates its own loopback clusters through `tests/disposable_postgres.py`; no external database URL is accepted. It clears libpq overrides, injects generated test-only targets, and removes clusters on normal exit. It never uses `.env` credentials. Never run as root. These classes are skipped during ordinary unit-test discovery unless explicitly enabled.
+
+Migration tests load a frozen legacy SQL fixture independent of current ORM metadata, seed synthetic users/applications, baseline it, and compare full-row digests across upgrades/downgrades. They cover fresh initialization, schema/model parity, orphan preservation, rejected invalid owners, RESTRICT deletion, sequence continuity/drift, unexpected schema, blocked stamp shortcuts, index failure/recovery, lock timeout, single-operator locking, read-only redacted preflight, no target fallback, and import without database access. The API suite also runs against a migrated PostgreSQL database, including a real concurrent owner-deletion race. No production/staging records are used.
+
+[Manual migration procedures](DATABASE_MIGRATIONS.md) distinguish disposable harness setup from operator-controlled production changes. The current work does not verify the actual production schema or restore a production backup.
 
 ## Frontend unit tests, lint, and build
 
@@ -38,7 +50,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The harness creates a disposable local PostgreSQL cluster on a free loopback port, starts the API on 8001, and starts Vite on 5174. It overrides database/signing configuration and clears libpq environment variables. The cluster is stopped and its temporary directory removed on normal exit. Do not run it as root.
+The harness creates and explicitly migrates a disposable local PostgreSQL cluster on a free loopback port, starts the API on 8001, and starts Vite on 5174. It overrides database/signing configuration and clears libpq environment variables. The cluster is stopped and its temporary directory removed on normal exit. Do not run it as root.
 
 If development already occupies 5174, use another test frontend port:
 
@@ -83,6 +95,6 @@ The requirements file pins the complete runtime set. An auditor can also check t
 
 [CI](../.github/workflows/ci.yml) runs on pushes to `master`, pull requests, and manual dispatch. It uses Ubuntu 24.04, Python 3.14, and Node 24. Official actions are pinned to verified commit SHAs. Permissions are limited to `contents: read`, checkout does not persist credentials, and there are no production secret inputs, deployments, or releases.
 
-CI runs the current-tree secret and documentation checks, installs pinned backend dependencies, runs dependency consistency/backend tests, installs the frontend lockfile, then runs unit tests, ESLint, and the build. The minimal workflow does not install a PostgreSQL service or run browser screenshots; full browser/Axe tests remain explicit local verification. It also does not claim an all-history secret audit.
+CI runs the current-tree secret and documentation checks, installs pinned backend dependencies, runs dependency consistency/SQLite tests, installs PostgreSQL 16 tools and runs disposable migration/API tests, installs the frontend lockfile, then runs unit tests, ESLint, and the build. It does not connect to a hosted PostgreSQL service or run browser screenshots; full browser/Axe tests remain explicit local verification. It also does not claim an all-history secret audit.
 
-A workflow file can be validated locally, but its actual hosted status can only be known after it runs on GitHub. [Latest verification and remaining limits](VERIFICATION.md).
+A workflow file can be validated locally, but its actual hosted status can only be known after it runs on GitHub. [Phase 2.6 verification and remaining limits](PHASE2_6_VERIFICATION.md). Earlier [Phase 2.5 results](VERIFICATION.md) are retained as historical evidence.

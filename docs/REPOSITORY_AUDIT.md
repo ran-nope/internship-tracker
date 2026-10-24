@@ -2,6 +2,8 @@
 
 ## Scope
 
+This report records the Phase 2.5 audit. Phase 2.6 subsequently adds Alembic and disposable PostgreSQL CI checks; see [current verification](PHASE2_6_VERIFICATION.md). Dependency and workflow descriptions below otherwise refer to that earlier audit.
+
 The audit inspected the tracked project structure, backend endpoints/models, frontend components/hooks/calculations, dependency declarations, environment examples, test harness, ignore rules, and historical reports. The working tree was clean at commit `665d4dc` before Phase 2.5 work. Production credentials, private records, and hosting settings were not inspected or changed.
 
 ## Findings and actions
@@ -36,6 +38,6 @@ The legacy JWT fixture is intentionally signed with a public synthetic test key.
 
 ## Remaining engineering limitations
 
-Current API ownership checks are tested, but the schema lacks the ownership foreign key and migration tooling. JWT localStorage, no server-side revocation/rate limiting/recovery, unpaginated API reads, and no status-event history are documented in [architecture](ARCHITECTURE.md#limitations-and-migrations). They were not changed during documentation work.
+At Phase 2.5, the schema lacked an ownership foreign key and migration tooling. Phase 2.6 adds a reviewed migration chain and missing-user protection locally; production remains uninspected and requires the [manual migration procedure](DATABASE_MIGRATIONS.md). JWT localStorage, no server-side revocation/rate limiting/recovery, unpaginated API reads, and no status-event history are documented in [architecture](ARCHITECTURE.md#limitations-and-migrations). They were not changed during documentation work.
 
 The recruiter demo remains a [recommendation](DEMO_EXPERIENCE.md). No public account, auth bypass, new AI feature, or machine-learning functionality was implemented. Hosted CI status remains unknown until an approved push triggers an actual run. [Final local results](VERIFICATION.md).

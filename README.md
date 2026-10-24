@@ -35,7 +35,7 @@ An internship search creates scattered job links, application dates, status upda
 
 ## Implemented features
 
-- **Authentication and ownership:** bcrypt password hashing, PyJWT HS256 tokens with required expiration, protected CRUD endpoints, and API queries scoped to the authenticated user.
+- **Authentication and ownership:** bcrypt password hashing, PyJWT HS256 tokens with required expiration, protected CRUD endpoints, missing-user session rejection, and API queries scoped to the authenticated user.
 - **Application management:** create, edit, and delete company/role records with status, date, location, job URL, and notes; changes persist in PostgreSQL.
 - **Search and organization:** combined company/role/location search, status filtering, newest/oldest/company sorting, reset, and paginated table/card views.
 - **Analytics:** total applications, current interview/offer counts, selection rate, status distribution, and application-date trends using Recharts. All calculations use the logged-in user's API response.
@@ -49,7 +49,7 @@ Metrics describe the current records, not historical status transitions or predi
 | Layer | Implementation |
 | --- | --- |
 | Frontend | React, Vite, Recharts, Lucide icons, CSS, self-hosted Manrope |
-| Backend | FastAPI, Pydantic, SQLAlchemy, PyJWT, bcrypt |
+| Backend | FastAPI, Pydantic, SQLAlchemy, Alembic, PyJWT, bcrypt |
 | Persistence | PostgreSQL in deployment; isolated SQLite for backend tests |
 | Verification | Python unittest, Node test runner, Playwright, Axe, ESLint |
 | Hosting | Vercel frontend and Render API |
@@ -89,6 +89,8 @@ CORS_ORIGINS=http://localhost:5173
 ```
 
 The frontend example uses `VITE_API_URL=http://127.0.0.1:8000`. Never put secrets in `VITE_*` variables; they become public browser code.
+
+Initialize the schema explicitly before starting the API. For a new empty local database, use the [manual migration setup](docs/DEVELOPMENT.md#initialize-or-baseline-the-local-schema); populated databases require verified baselining. Startup does not create or migrate tables.
 
 Start the backend and frontend in separate terminals:
 
@@ -133,16 +135,17 @@ frontend/src/           React components, state hooks, API helper, analytics
 frontend/e2e/           Browser regression and accessibility tests
 frontend/screenshots/   Isolated documentation capture suite
 tests/                  Backend and frontend unit tests, disposable API harness
-scripts/                Redacted source scan and documentation link checks
+alembic/                Reviewed baseline and incremental PostgreSQL migrations
+scripts/                Manual migration/preflight and repository checks
 docs/                   Architecture, setup, case study, gallery, history
 .github/workflows/      Minimal verification workflow
 ```
 
 ## Current limits and roadmap
 
-The current schema has no database foreign key on `internships.user_id`, and `create_all()` does not migrate existing tables. Before adding constraints, audit orphaned records and introduce reviewed, reversible migrations. JWTs are stored in localStorage; logout removes the browser token but does not revoke it server-side.
+The repository includes reviewed Alembic migrations for an owner index and `ON DELETE RESTRICT` foreign key, with a separate historical-validation step. Existing databases require schema inspection, backup, verified baselining, and an explicit operator upgrade; **production has not been inspected or migrated as part of this work**. [Migration and recovery runbook](docs/DATABASE_MIGRATIONS.md). JWTs are stored in localStorage; logout removes the browser token but does not revoke it server-side.
 
-Planned improvements include migration tooling, authentication rate limiting and recovery, server-side pagination for larger datasets, application status history, and a clearly labeled frontend-only demo. These are future work, not shipped features. [Limitations and migration plan](docs/ARCHITECTURE.md#limitations-and-migrations).
+Planned improvements include authentication rate limiting and recovery, server-side pagination for larger datasets, application status history, and a clearly labeled frontend-only demo. These are future work, not shipped features. [Limitations and migration plan](docs/ARCHITECTURE.md#limitations-and-migrations).
 
 ## License
 
