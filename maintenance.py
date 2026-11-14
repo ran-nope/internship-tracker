@@ -12,7 +12,7 @@ from starlette.responses import JSONResponse
 MESSAGE = 'The application is temporarily read-only for database maintenance. Please try again later.'
 SAFE_METHODS = frozenset({'GET', 'HEAD', 'OPTIONS'})
 # These existing POST operations only check credentials and issue a JWT.
-READ_ONLY_POST_PATHS = frozenset({'/login', '/login/'})
+READ_ONLY_POST_PATHS = frozenset({'/login', '/login/', '/auth/login', '/auth/login/'})
 
 
 @dataclass(frozen=True)

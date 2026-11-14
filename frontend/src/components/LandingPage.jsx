@@ -13,7 +13,7 @@ import Brand from './Brand'
 import DashboardPreview from './DashboardPreview'
 import { routeHref } from '../utils/navigation'
 
-export default function LandingPage({ theme, toggleTheme, authenticated }) {
+export default function LandingPage({ theme, toggleTheme, authenticated, onDemo }) {
   const startHref = routeHref(authenticated ? 'overview' : 'signup')
   return (
     <div className="public-site">
@@ -40,6 +40,7 @@ export default function LandingPage({ theme, toggleTheme, authenticated }) {
             </a>
           </nav>
           <div className="public-nav-actions">
+            {!authenticated && <button className="quiet-button" onClick={onDemo}>Explore synthetic demo</button>}
             <button
               className="icon-button"
               onClick={toggleTheme}

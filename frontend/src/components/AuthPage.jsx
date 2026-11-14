@@ -215,7 +215,7 @@ export default function AuthPage({
           ) : (
             !isLogin && (
               <p className="field-hint" id="password-hint">
-                Choose a unique password you can keep safe.
+                Use at least 8 characters, with uppercase, lowercase and a digit.
               </p>
             )
           )}

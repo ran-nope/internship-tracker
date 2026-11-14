@@ -18,6 +18,9 @@ def main():
     with disposable_postgres() as url:
         os.environ['PYTHON_DOTENV_DISABLED'] = '1'
         os.environ['MAINTENANCE_MODE'] = 'false'
+        # Dedicated throttle unit tests use the production limit. Browser suites
+        # create many fictional users behind one loopback IP.
+        os.environ['AUTH_RATE_LIMIT'] = '1000'
         os.environ['DATABASE_URL'] = url
         os.environ['MIGRATION_DATABASE_URL'] = url
         os.environ['SECRET_KEY'] = 'isolated-browser-test-secret-not-for-production'

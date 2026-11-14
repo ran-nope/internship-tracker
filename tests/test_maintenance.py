@@ -113,7 +113,7 @@ with patch.object(main, 'SessionLocal', side_effect=AssertionError('Database acc
     assert request(main.app, 'GET', '/status')[2]['maintenance_mode'] is True
 print('Application maintenance status and early gate passed without database access.')
 '''
-        environment['PYTHONPATH'] = str(ROOT / 'tests')
+        environment['PYTHONPATH'] = str(ROOT / 'tests') + os.pathsep + environment.get('PYTHONPATH', '')
         result = subprocess.run([sys.executable,'-B','-c',code], cwd=ROOT,
                                 env=environment, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)

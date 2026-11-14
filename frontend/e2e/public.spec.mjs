@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 const api = 'http://127.0.0.1:8001'
-const password = 'isolated-public-navigation-password'
+const password = 'Isolated-public-navigation-password1'
 async function account(request) {
   const username = `public-${Date.now()}-${Math.random().toString(36).slice(2)}`
   expect(

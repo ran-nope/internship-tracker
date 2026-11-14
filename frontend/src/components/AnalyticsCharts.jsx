@@ -35,8 +35,8 @@ function TrendTooltip({ active, payload }) {
 export default function AnalyticsCharts({ items, summary, onStatus }) {
   const [range, setRange] = useState('6')
   const trend = useMemo(
-    () => buildApplicationTrend(items, range),
-    [items, range],
+    () => buildApplicationTrend(summary.months || items, range),
+    [items, range, summary.months],
   )
   const distribution = STATUSES.map((name) => ({
     name,

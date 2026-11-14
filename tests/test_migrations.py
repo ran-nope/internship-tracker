@@ -339,6 +339,11 @@ class PostgresApiTests(test_api.ApiTests):
         cls.main = importlib.import_module('main')
 
     def setUp(self):
+        layer = self.main.app
+        while layer is not None:
+            if hasattr(layer, 'clients'):
+                layer.clients.clear()
+            layer = getattr(layer, 'app', None) or getattr(layer, 'middleware_stack', None)
         with self.database.engine.begin() as connection:
             connection.exec_driver_sql('TRUNCATE public.internships, public.users RESTART IDENTITY')
 
@@ -356,7 +361,7 @@ class PostgresApiTests(test_api.ApiTests):
             with self.database.engine.begin() as connection:
                 connection.exec_driver_sql("DELETE FROM users WHERE username='alice'")
             original(db)
-        with patch.object(self.main, 'commit_internship', side_effect=delete_owner_then_commit):
+        with patch('routes.internships.commit_internship', side_effect=delete_owner_then_commit):
             status, headers, _ = self.request('POST', '/internships',
                 {'company': 'Example', 'role': 'Intern', 'status': 'Applied', 'application_date': '2026-10-23'}, token)
         self.assertEqual(status, 401)
@@ -377,7 +382,7 @@ class PostgresApiTests(test_api.ApiTests):
         gated = CORSMiddleware(MaintenanceMiddleware(original.app, enabled=True),
             allow_origins=['https://test-frontend.example'], allow_credentials=True,
             allow_methods=['GET','HEAD','POST','PUT','DELETE','OPTIONS'], allow_headers=['Authorization','Content-Type'])
-        with patch.object(self.main, 'SessionLocal', factory), patch.object(self.main, 'app', gated), \
+        with patch('auth.SessionLocal', factory), patch.object(self.main, 'app', gated), \
              patch.object(self.main, 'RUNTIME', RuntimeSettings(maintenance_mode=True)):
             yield
 
@@ -388,12 +393,12 @@ class PostgresApiTests(test_api.ApiTests):
         created = self.request('POST', '/internships', application, token)[2]
         path = f"/internships/{created['id']}"
         with self.maintenance():
-            self.assertEqual(self.request('POST','/login',{'username':'alice','password':'test-password'})[0], 200)
+            self.assertEqual(self.request('POST','/login',{'username':'alice','password':'Test-password1'})[0], 200)
             self.assertEqual(self.request('GET','/internships',token=token)[2], [created])
             self.assertEqual(self.request('GET','/internships',token=other)[2], [])
             self.assertEqual(self.request('GET','/internships')[0], 401)
             self.assertEqual(self.request('GET','/internships',token='invalid')[0], 401)
-            for method, endpoint, body in [('POST','/signup',{'username':'charlie','password':'test-password'}),
+            for method, endpoint, body in [('POST','/signup',{'username':'charlie','password':'Test-password1'}),
                     ('POST','/internships',application),('PUT',path,application),('DELETE',path,None)]:
                 status, headers, data = self.request(method, endpoint, body, token)
                 self.assertEqual(status, 503)
@@ -404,7 +409,7 @@ class PostgresApiTests(test_api.ApiTests):
         application['status'] = 'Interview'
         self.assertEqual(self.request('PUT',path,application,token)[0], 200)
         self.assertEqual(self.request('DELETE',path,token=token)[0], 200)
-        self.assertEqual(self.request('POST','/signup',{'username':'charlie','password':'test-password'})[0], 200)
+        self.assertEqual(self.request('POST','/signup',{'username':'charlie','password':'Test-password1'})[0], 200)
 
 
 @unittest.skipUnless(ENABLED, 'Opt-in disposable PostgreSQL connection/maintenance tests')
