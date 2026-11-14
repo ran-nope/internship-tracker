@@ -26,7 +26,6 @@ body {
   background: var(--accent);
   color: #201c38;
 }
-.primary-button,
 .secondary-button,
 .icon-button,
 .nav-item,
@@ -38,6 +37,10 @@ a {
     color 160ms ease,
     border-color 160ms ease,
     box-shadow 160ms ease;
+}
+.primary-button {
+  /* Switch foreground and background together to preserve contrast. */
+  transition: box-shadow 160ms ease;
 }
 .primary-button svg {
   transition: transform 160ms ease;
