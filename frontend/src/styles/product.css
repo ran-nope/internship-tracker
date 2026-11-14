@@ -26,6 +26,7 @@ body {
   background: var(--accent);
   color: #201c38;
 }
+/* Apply theme colors immediately so text and its background stay in sync. */
 .primary-button,
 .secondary-button,
 .icon-button,
@@ -34,8 +35,6 @@ body {
 .application-card,
 a {
   transition:
-    background-color 160ms ease,
-    color 160ms ease,
     border-color 160ms ease,
     box-shadow 160ms ease;
 }

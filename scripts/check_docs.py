@@ -40,7 +40,7 @@ def main():
             if not target.is_relative_to(ROOT) or not target.exists():
                 errors.append(f'{name}: missing or out-of-repository target {link}')
             elif parsed.fragment and target.suffix == '.md':
-                if unquote(parsed.fragment) not in anchors(target.read_text()):
+                if unquote(parsed.fragment) not in anchors(target.read_text(encoding='utf-8')):
                     errors.append(f'{name}: missing anchor {link}')
     if errors:
         print('\n'.join(errors))

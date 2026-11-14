@@ -23,7 +23,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `${fileURLToPath(new URL('../venv/bin/python', import.meta.url))} -B ../tests/serve_test_api.py`,
+      command: `"${process.env.TEST_PYTHON || fileURLToPath(new URL(process.platform === 'win32' ? '../venv/Scripts/python.exe' : '../venv/bin/python', import.meta.url))}" -B ../tests/serve_test_api.py`,
       url: 'http://127.0.0.1:8001/',
       timeout: 60000,
       reuseExistingServer: false,
@@ -31,7 +31,7 @@ export default defineConfig({
       gracefulShutdown: { signal: 'SIGTERM', timeout: 10000 },
     },
     {
-      command: `npm run dev -- --host 127.0.0.1 --port ${frontendPort} --strictPort`,
+      command: `node node_modules/vite/bin/vite.js --host 127.0.0.1 --port ${frontendPort} --strictPort`,
       url: frontendUrl,
       env: { VITE_API_URL: 'http://127.0.0.1:8001' },
       reuseExistingServer: false,

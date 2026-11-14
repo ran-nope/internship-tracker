@@ -1,9 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiRequest } from '../api'
+import { demoRequest } from '../demo'
 import { EMPTY_FORM } from '../utils/applications'
 
 export function useTracker({ workspaceActive = true } = {}) {
-  const [token, setToken] = useState(localStorage.getItem('token'))
+  const [token, setToken] = useState(sessionStorage.getItem('synthetic-demo') ? 'synthetic-demo' : localStorage.getItem('token'))
+  const isDemo = token === 'synthetic-demo'
+  const request = useCallback((...args) => isDemo ? demoRequest(...args) : apiRequest(...args), [isDemo])
+  const [filters, setFilters] = useState({search: '', status: 'All', sort: 'newest'})
+  const [page, setPage] = useState(0)
+  const [total, setTotal] = useState(0)
+  const [summary, setSummary] = useState(null)
 
   const sessionVersion = useRef(0)
 
@@ -39,14 +46,18 @@ export function useTracker({ workspaceActive = true } = {}) {
       setError('')
 
       try {
-        const data = await apiRequest(
-          '/internships',
+        const data = await request(
+          `/internships?${new URLSearchParams({...filters, limit: 8, offset: page * 8})}`,
           { signal: controller.signal },
           token,
         )
 
         if (!cancelled) {
-          setInternships(data)
+          setInternships(data.items)
+          setTotal(data.total)
+          if (page > 0 && page * 8 >= data.total) setPage(Math.max(0, Math.ceil(data.total / 8) - 1))
+          const aggregate = await request('/internships/summary', {signal: controller.signal}, token)
+          if (!cancelled) setSummary(aggregate)
         }
       } catch (err) {
         if (!cancelled) {
@@ -67,7 +78,7 @@ export function useTracker({ workspaceActive = true } = {}) {
       cancelled = true
       controller.abort()
     }
-  }, [token, loadVersion, workspaceActive])
+  }, [token, loadVersion, workspaceActive, filters, page, request])
 
   // ---------------- LOGIN / SIGNUP ----------------
 
@@ -85,9 +96,9 @@ export function useTracker({ workspaceActive = true } = {}) {
     setLoading(true)
 
     try {
-      const endpoint = mode === 'login' ? '/login' : '/signup'
+      const endpoint = mode === 'login' ? '/auth/login' : '/auth/signup'
 
-      const data = await apiRequest(endpoint, {
+      const data = await request(endpoint, {
         method: 'POST',
         body: JSON.stringify({
           username: username.trim(),
@@ -164,7 +175,7 @@ export function useTracker({ workspaceActive = true } = {}) {
 
     try {
       if (editingId !== null) {
-        const updated = await apiRequest(
+        const updated = await request(
           `/internships/${editingId}`,
           {
             method: 'PUT',
@@ -181,7 +192,7 @@ export function useTracker({ workspaceActive = true } = {}) {
 
         setSuccess('Internship updated successfully!')
       } else {
-        const created = await apiRequest(
+        const created = await request(
           '/internships',
           {
             method: 'POST',
@@ -198,6 +209,7 @@ export function useTracker({ workspaceActive = true } = {}) {
       }
 
       clearForm()
+      setLoadVersion(v => v + 1)
       return true
     } catch (err) {
       if (sessionVersion.current === requestSession) setError(err.message)
@@ -247,7 +259,7 @@ export function useTracker({ workspaceActive = true } = {}) {
     mutationLock.current = true
     setDeletingId(id)
     try {
-      await apiRequest(`/internships/${id}`, { method: 'DELETE' }, token)
+      await request(`/internships/${id}`, { method: 'DELETE' }, token)
 
       if (sessionVersion.current !== requestSession) return
 
@@ -258,6 +270,7 @@ export function useTracker({ workspaceActive = true } = {}) {
       }
 
       setSuccess('Internship deleted successfully!')
+      setLoadVersion(v => v + 1)
     } catch (err) {
       if (sessionVersion.current === requestSession) setError(err.message)
     } finally {
@@ -278,17 +291,24 @@ export function useTracker({ workspaceActive = true } = {}) {
     setLoading(false)
     setSaving(false)
     setDeletingId(null)
+    sessionStorage.removeItem('synthetic-demo')
     localStorage.removeItem('token')
     localStorage.removeItem('username')
 
     setToken(null)
     setInternships([])
+    setSummary(null)
+    setTotal(0)
+    setPage(0)
+    setFilters({search: '', status: 'All', sort: 'newest'})
     clearForm()
     setError('')
     setSuccess('')
   }
 
   return {
+    isDemo, filters, setFilters: update => { setFilters(update); setPage(0) }, page, setPage, total, summary,
+    startDemo: () => { sessionStorage.setItem('synthetic-demo', '1'); setToken('synthetic-demo'); window.location.hash = '/overview' },
     token,
     username,
     setUsername,

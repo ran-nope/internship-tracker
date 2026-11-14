@@ -10,6 +10,7 @@ import json
 import os
 import sys
 import unittest
+from urllib.parse import urlsplit
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -47,11 +48,16 @@ class ApiTests(unittest.TestCase):
     def setUp(self):
         if str(self.database.engine.url) != 'sqlite://':
             raise RuntimeError('Tests require an in-memory SQLite database')
+        layer = self.main.app
+        while layer is not None:
+            if hasattr(layer, 'clients'): layer.clients.clear()
+            layer = getattr(layer, 'app', None) or getattr(layer, 'middleware_stack', None)
         self.database.Base.metadata.drop_all(self.database.engine)
         self.database.Base.metadata.create_all(self.database.engine)
 
     def request(self, method, path, body=None, token=None, origin='https://test-frontend.example', extra_headers=()):
         async def run():
+            parsed = urlsplit(path)
             headers = [(b'host', b'testserver'), (b'origin', origin.encode())]
             if body is not None:
                 headers.append((b'content-type', b'application/json'))
@@ -59,8 +65,8 @@ class ApiTests(unittest.TestCase):
                 headers.append((b'authorization', f'Bearer {token}'.encode()))
             headers.extend(extra_headers)
             scope = {'type': 'http', 'asgi': {'version': '3.0'}, 'http_version': '1.1',
-                     'method': method, 'scheme': 'http', 'path': path, 'raw_path': path.encode(),
-                     'query_string': b'', 'root_path': '', 'headers': headers,
+                     'method': method, 'scheme': 'http', 'path': parsed.path, 'raw_path': parsed.path.encode(),
+                     'query_string': parsed.query.encode(), 'root_path': '', 'headers': headers,
                      'client': ('127.0.0.1', 1234), 'server': ('testserver', 80)}
             messages = []
             async def receive():
@@ -78,11 +84,32 @@ class ApiTests(unittest.TestCase):
                 data = json.loads(content)
             except ValueError:
                 data = content.decode()
+            if method == 'GET' and path == '/internships' and isinstance(data, dict) and 'items' in data:
+                data = data['items']
             return start['status'], dict(start['headers']), data
         return asyncio.run(run())
 
+    def test_pagination_filters_aggregates_and_owner_isolation(self):
+        token = self.account('pagination')
+        other = self.account('other')
+        for index in range(12):
+            payload = {'company': f'Company {index:02}', 'role': 'Intern', 'status': 'Applied', 'application_date': '2026-10-23'}
+            self.assertEqual(self.request('POST', '/internships', payload, token)[0], 200)
+        status, _, first = self.request('GET', '/internships?limit=5&offset=0', token=token)
+        second = self.request('GET', '/internships?limit=5&offset=5', token=token)[2]
+        self.assertEqual(status, 200)
+        self.assertEqual(first['total'], 12)
+        self.assertEqual(len(first['items']), 5)
+        self.assertTrue({x['id'] for x in first['items']}.isdisjoint(x['id'] for x in second['items']))
+        self.assertEqual(self.request('GET', '/internships?limit=5', token=other)[2]['total'], 0)
+        self.assertEqual(self.request('GET', '/internships?search=Company%2001', token=token)[2]['total'], 1)
+        self.assertEqual(self.request('GET', '/internships?limit=101', token=token)[0], 422)
+        aggregate = self.request('GET', '/internships/summary', token=token)[2]
+        self.assertEqual(aggregate['total'], 12)
+        self.assertEqual(sum(row['count'] for row in aggregate['months']), 12)
+
     def account(self, name):
-        user = {'username': name, 'password': 'test-password'}
+        user = {'username': name, 'password': 'Test-password1'}
         self.assertEqual(self.request('POST', '/signup', user)[0], 200)
         status, _, data = self.request('POST', '/login', user)
         self.assertEqual(status, 200)
@@ -106,7 +133,7 @@ class ApiTests(unittest.TestCase):
 
     def test_invalid_auth_and_validation(self):
         self.account('alice')
-        self.assertEqual(self.request('POST', '/signup', {'username': 'alice', 'password': 'test-password'})[0], 409)
+        self.assertEqual(self.request('POST', '/signup', {'username': 'alice', 'password': 'Test-password1'})[0], 409)
         self.assertEqual(self.request('POST', '/login', {'username': 'alice', 'password': 'wrong'})[0], 401)
         self.assertEqual(self.request('GET', '/internships')[0], 401)
         self.assertEqual(self.request('GET', '/internships', token='invalid')[0], 401)
@@ -267,7 +294,7 @@ class ApiTests(unittest.TestCase):
         db.query.return_value.filter.return_value.first.side_effect = [None, object()]
         db.commit.side_effect = IntegrityError('simulated duplicate insert', {}, Exception())
         with self.assertRaises(self.main.HTTPException) as error:
-            self.main.signup(self.main.User(username='race', password='test-password'), db)
+            self.main.signup(self.main.User(username='race', password='Test-password1'), db)
         self.assertEqual(error.exception.status_code, 409)
         db.rollback.assert_called_once()
 

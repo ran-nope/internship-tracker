@@ -109,9 +109,11 @@ export function buildApplicationTrend(items, range = '6', now = new Date()) {
       applications: 0,
     })
   }
-  for (const index of dates) {
+  for (const item of items) {
+    const index = monthIndex(item.application_date)
+    if (index === null) continue
     if (index >= start && index <= end)
-      buckets[Math.floor((index - start) / step)].applications++
+      buckets[Math.floor((index - start) / step)].applications += item.count ?? 1
   }
   return buckets
 }

@@ -101,7 +101,7 @@ Analytics are computed in the browser from the existing authenticated `GET /inte
 - **Active:** Applied + Assessment + Interview + Offer.
 - **Trend:** application-date counts by calendar month, including empty months. Six/twelve-month ranges include the current month. All-time ranges include the earliest date through the current/latest month and group into at most 24 buckets.
 
-List filters do not change overview totals. Search, sorting, and eight-record pagination happen in the browser after loading the full user dataset. Trend calculations avoid converting date-only values through local time zones. These are descriptive counts, not hiring predictions, conversion funnels, or historical interview/offer events.
+List filters do not change overview totals. Search, sorting, and eight-record pagination run on the server; the browser fetches the current page. Account-wide counts and monthly aggregates come from /internships/summary. Trend calculations avoid converting date-only values through local time zones. These are descriptive counts, not hiring predictions, conversion funnels, or historical interview/offer events.
 
 ## Environments and configuration
 
@@ -120,8 +120,8 @@ List filters do not change overview totals. Search, sorting, and eight-record pa
 - Application startup performs no DDL. Alembic revisions are manual operator operations; `create_all()` is used only in isolated SQLite unit-test setup.
 - Existing databases must pass schema preflight before the exact legacy baseline is stamped. Orphans are preserved and block the final FK-validation revision. Production audit, backup, baselining, migration, and deployment require separate approval. [Runbook and stopping conditions](DATABASE_MIGRATIONS.md).
 - The index/FK address ownership integrity; status/string rules remain application-enforced. No database row-level security is installed. Privileged SQL can still change ownership, so roles and operational access need separate review.
-- JWT storage in localStorage leaves tokens accessible to JavaScript; React text escaping is not a complete XSS defense. Logout clears the local token but does not revoke it at the server. There are no refresh tokens, server-side revocation, password recovery, or authentication rate limits.
-- API lists are unpaginated, and charts/search operate on the complete response. Larger datasets may need server-side pagination/filtering and dedicated aggregates.
+- JWT storage in localStorage leaves tokens accessible to JavaScript; React text escaping is not a complete XSS defense. Logout clears the local token but does not revoke it at the server. There are no refresh tokens, server-side revocation, password recovery, or shared multi-worker authentication limits. A bounded process-local throttle protects authentication endpoints.
+- API lists return items, total, limit and offset, with server-side filtering. Charts use account-wide SQL aggregates. Offset pagination can shift when concurrent writes occur.
 - There is no persisted status-event history. Historical conversion or time-in-stage analytics would need new tables and carefully defined events.
 - Tests cover SQLite API behavior, disposable PostgreSQL migrations/API/browser flows, populated-data preservation, constraint enforcement, lock failure, and index recovery. Production load, actual backup restore, multi-instance deployment, and all native browsers remain outside this verification.
 

@@ -19,7 +19,7 @@ import { useTheme } from './hooks/useTheme'
 import { useNavigation } from './hooks/useNavigation'
 import { PROTECTED_ROUTES, routeHref } from './utils/navigation'
 import LandingPage from './components/LandingPage'
-import { summarizeApplications, filterApplications } from './utils/applications'
+import { summarizeApplications } from './utils/applications'
 import AppShell from './components/AppShell'
 import AuthPage from './components/AuthPage'
 import ApplicationForm from './components/ApplicationForm'
@@ -33,15 +33,15 @@ const AnalyticsCharts = lazy(() => import('./components/AnalyticsCharts'))
 const INITIAL_FILTERS = { search: '', status: 'All', sort: 'newest' }
 
 function Workspace({ tracker, theme, toggleTheme, page, onNavigate }) {
-  const [filters, setFilters] = useState(INITIAL_FILTERS)
+  const {filters, setFilters} = tracker
   const [formOpen, setFormOpen] = useState(false)
   const summary = useMemo(
-    () => summarizeApplications(tracker.internships),
-    [tracker.internships],
+    () => tracker.summary || summarizeApplications(tracker.internships),
+    [tracker.internships, tracker.summary],
   )
   const filtered = useMemo(
-    () => filterApplications(tracker.internships, filters),
-    [tracker.internships, filters],
+    () => tracker.internships,
+    [tracker.internships],
   )
   const { setSuccess } = tracker
   const dismissSuccess = useCallback(() => setSuccess(''), [setSuccess])
@@ -80,6 +80,7 @@ function Workspace({ tracker, theme, toggleTheme, page, onNavigate }) {
       theme={theme}
       toggleTheme={toggleTheme}
     >
+      {tracker.isDemo && <p role="status">Synthetic demo — fictional data stored only in this tab. Changes reset when you close the tab.</p>}
       <div className="page-heading">
         <div>
           <div className="eyebrow">
@@ -202,7 +203,7 @@ function Workspace({ tracker, theme, toggleTheme, page, onNavigate }) {
       )}
       <ApplicationList
         items={filtered}
-        total={tracker.internships.length}
+        total={tracker.total}
         tracker={tracker}
         filters={filters}
         setFilters={setFilters}
@@ -291,6 +292,7 @@ export default function App() {
         theme={theme}
         toggleTheme={toggleTheme}
         authenticated={!!token}
+        onDemo={tracker.startDemo}
       />
     )
   return (

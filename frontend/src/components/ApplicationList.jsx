@@ -82,17 +82,10 @@ export default function ApplicationList({
   const [view, setView] = useState(() =>
     localStorage.getItem('application-view') === 'cards' ? 'cards' : 'table',
   )
-  const [page, setPage] = useState(0)
+  const { page, setPage } = tracker
   const pageSize = 8
-  // Derive the page from the result set, so deleting a final row never strands it.
-  const currentPage = Math.min(
-    page,
-    Math.max(0, Math.ceil(items.length / pageSize) - 1),
-  )
-  const visible = items.slice(
-    currentPage * pageSize,
-    (currentPage + 1) * pageSize,
-  )
+  const currentPage = page
+  const visible = items
   const filtered = !!filters.search.trim() || filters.status !== 'All'
   const changed = filtered || filters.sort !== 'newest'
   const changeFilter = (name, value) => {
@@ -310,8 +303,8 @@ export default function ApplicationList({
           <div className="list-footer">
             <span>
               Showing {currentPage * pageSize + 1}–
-              {Math.min((currentPage + 1) * pageSize, items.length)} of{' '}
-              {items.length} {filtered ? 'matching ' : ''}applications
+              {Math.min((currentPage + 1) * pageSize, total)} of{' '}
+              {total} {filtered ? 'matching ' : ''}applications
             </span>
             <div className="pagination">
               <button
@@ -323,12 +316,12 @@ export default function ApplicationList({
                 <ChevronLeft size={16} />
               </button>
               <span>
-                Page {currentPage + 1} of {Math.ceil(items.length / pageSize)}
+                Page {currentPage + 1} of {Math.ceil(total / pageSize)}
               </span>
               <button
                 className="icon-button"
                 aria-label="Next page"
-                disabled={(currentPage + 1) * pageSize >= items.length}
+                disabled={(currentPage + 1) * pageSize >= total}
                 onClick={() => setPage(currentPage + 1)}
               >
                 <ChevronRight size={16} />

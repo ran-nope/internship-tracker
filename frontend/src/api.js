@@ -55,18 +55,18 @@ export async function apiRequest(path, options = {}, token = null) {
       : typeof detail === "string" ? detail : `Request failed (${response.status})`
     throw new Error(message || `Request failed (${response.status})`)
   }
-  const endpoint = path.replace(/^\/+/, "")
+  const endpoint = path.replace(/^\/+/, "").split("?")[0]
   const method = (options.method || "GET").toUpperCase()
   const isInternship = (item) => item && Number.isInteger(item.id) && item.id > 0 &&
     ["company", "role", "status", "application_date"].every((field) => typeof item[field] === "string") &&
     ["location", "job_url", "notes"].every((field) => item[field] == null || typeof item[field] === "string")
   let valid = data !== null
   if (endpoint === "internships" && method === "GET") {
-    valid = Array.isArray(data) && data.every(isInternship)
+    valid = Array.isArray(data?.items) && data.items.every(isInternship) && Number.isInteger(data.total) && data.total >= 0
   } else if ((endpoint === "internships" && method === "POST") ||
              (/^internships\/\d+$/.test(endpoint) && method === "PUT")) {
     valid = isInternship(data)
-  } else if (endpoint === "login" && method === "POST") {
+  } else if ((endpoint === "login" || endpoint === "auth/login") && method === "POST") {
     valid = typeof data?.access_token === "string" && !!data.access_token && typeof data.username === "string"
   }
   if (!valid) throw new Error("The API returned an invalid response. Please try again.")

@@ -25,9 +25,9 @@ PATTERNS = {
 TEST_LITERALS = {
     ('tests/test_api.py', b'isolated-test-secret-not-for-production'),
     ('tests/test_migrations.py', b'isolated-test-secret-not-for-production'),
-    ('frontend/e2e/phase1.spec.mjs', b'isolated-browser-test-password'),
-    ('frontend/e2e/phase2.spec.mjs', b'isolated-phase2-browser-password'),
-    ('frontend/e2e/public.spec.mjs', b'isolated-public-navigation-password'),
+    ('frontend/e2e/phase1.spec.mjs', b'Isolated-browser-test-password1'),
+    ('frontend/e2e/phase2.spec.mjs', b'Isolated-phase2-browser-password1'),
+    ('frontend/e2e/public.spec.mjs', b'Isolated-public-navigation-password1'),
 }
 FIXTURE_HASH = '72a3f4498f60e59216ce1906dba16840215c781a39db6baed6553fb2caf795ce'
 

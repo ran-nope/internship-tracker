@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-const password = 'isolated-browser-test-password'
+const password = 'Isolated-browser-test-password1'
 const api = 'http://127.0.0.1:8001'
 const unique = () =>
   `phase1-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -146,7 +146,7 @@ test('network and malformed responses are readable, expired sessions require log
 }) => {
   const username = await createAccount(request)
   await login(page, username)
-  await page.route('**/internships', (route) =>
+  await page.route(/\/internships(?:\?.*)?$/, (route) =>
     route.fulfill({
       status: 503,
       contentType: 'text/html',
@@ -159,15 +159,15 @@ test('network and malformed responses are readable, expired sessions require log
     .click()
   await expect(page.locator('.error')).toContainText('503')
   await expect(page.locator('[name="company"]')).toHaveValue('Phase 1 Example')
-  await page.unroute('**/internships')
-  await page.route('**/internships', (route) => route.abort())
+  await page.unroute(/\/internships(?:\?.*)?$/)
+  await page.route(/\/internships(?:\?.*)?$/, (route) => route.abort())
   await page
     .getByRole('button', { name: 'Add Internship', exact: true })
     .click()
   await expect(page.locator('.error')).toContainText('Unable to reach the API')
   await expect(page.locator('[name="company"]')).toHaveValue('Phase 1 Example')
-  await page.unroute('**/internships')
-  await page.route('**/internships', (route) =>
+  await page.unroute(/\/internships(?:\?.*)?$/)
+  await page.route(/\/internships(?:\?.*)?$/, (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -177,7 +177,7 @@ test('network and malformed responses are readable, expired sessions require log
   await page.reload()
   await expect(page.getByRole('button', { name: 'Logout' })).toBeVisible()
   await expect(page.locator('.error')).toBeVisible()
-  await page.unroute('**/internships')
+  await page.unroute(/\/internships(?:\?.*)?$/)
   await page.evaluate(() => localStorage.setItem('token', 'expired-test-token'))
   await page.reload()
   await expect(

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 
 const api = 'http://127.0.0.1:8001'
-const password = 'isolated-phase2-browser-password'
+const password = 'Isolated-phase2-browser-password1'
 const now = new Date()
 const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1)
@@ -235,7 +235,7 @@ test('loading skeleton and failed-list recovery never display fabricated analyti
   const gate = new Promise((resolve) => {
     release = resolve
   })
-  await page.route('**/internships', async (route) => {
+  await page.route(/\/internships(?:\?.*)?$/, async (route) => {
     await gate
     await route.continue()
   })
@@ -254,8 +254,8 @@ test('loading skeleton and failed-list recovery never display fabricated analyti
   await expect(page.getByTestId('metric-total')).toHaveCount(0)
   release()
   await expect(page.getByTestId('metric-total')).toHaveText('5')
-  await page.unroute('**/internships')
-  await page.route('**/internships', (route) =>
+  await page.unroute(/\/internships(?:\?.*)?$/)
+  await page.route(/\/internships(?:\?.*)?$/, (route) =>
     route.fulfill({
       status: 503,
       contentType: 'application/json',
@@ -266,7 +266,7 @@ test('loading skeleton and failed-list recovery never display fabricated analyti
   await expect(page.getByTestId('metric-total')).toHaveText('—')
   await expect(page.getByRole('alert')).toContainText('Temporarily unavailable')
   await expect(page.getByLabel('Trend date range')).toHaveCount(0)
-  await page.unroute('**/internships')
+  await page.unroute(/\/internships(?:\?.*)?$/)
   await page.getByRole('button', { name: 'Retry', exact: true }).click()
   await expect(page.getByTestId('metric-total')).toHaveText('5')
 })

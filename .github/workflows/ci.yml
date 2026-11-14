@@ -31,11 +31,11 @@ jobs:
           python scripts/check_secrets.py
           python scripts/check_docs.py
       - name: Install backend dependencies
-        run: python -m pip install -r requirements.txt
+        run: python -m pip install -r requirements.txt pytest httpx
       - name: Check backend dependencies
         run: python -m pip check
       - name: Run backend tests with isolated SQLite
-        run: python -B -m unittest discover -s tests -v
+        run: python -B -m pytest -q
       - name: Install disposable PostgreSQL test tools
         run: |
           sudo apt-get update
@@ -61,3 +61,11 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+      - name: Install browser
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Browser regressions with disposable PostgreSQL
+        working-directory: frontend
+        env:
+          TEST_PYTHON: python
+        run: npm run test:e2e

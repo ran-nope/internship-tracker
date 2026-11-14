@@ -31,7 +31,7 @@ An internship search creates scattered job links, application dates, status upda
 
 </details>
 
-[View the complete gallery and dataset provenance](docs/screenshots/README.md). There is no shared demo login. The public landing page is accessible without an account; the authenticated workspace requires signup/login. A separate demo experience is [recommended, not implemented](docs/DEMO_EXPERIENCE.md).
+[View the complete gallery and dataset provenance](docs/screenshots/README.md). There is no shared demo login. The public landing page is accessible without an account; the authenticated workspace requires signup/login. Choose **Explore synthetic demo** on the landing page for a populated fictional workspace. Demo records stay in tab session storage and never call the API. [Demo behavior](docs/DEMO_EXPERIENCE.md).
 
 ## Implemented features
 
@@ -131,7 +131,9 @@ Vercel builds `frontend/` with `npm run build` and serves `dist/`. Render instal
 ## Repository map
 
 ```text
-main.py                 FastAPI routes, validation, authentication, CORS
+main.py                 App composition, lifecycle and CORS
+config.py / schemas.py  Settings and request validation
+auth.py / routes/       Authentication and paginated internship routes
 database.py / models.py  SQLAlchemy connection and table definitions
 frontend/src/           React components, state hooks, API helper, analytics
 frontend/e2e/           Browser regression and accessibility tests
@@ -147,8 +149,8 @@ docs/                   Architecture, setup, case study, gallery, history
 
 The repository includes reviewed Alembic migrations for an owner index and `ON DELETE RESTRICT` foreign key, with a separate historical-validation step. Existing databases require schema inspection, backup, verified baselining, and an explicit operator upgrade; **production has not been inspected or migrated as part of this work**. [Migration and recovery runbook](docs/DATABASE_MIGRATIONS.md). JWTs are stored in localStorage; logout removes the browser token but does not revoke it server-side.
 
-Planned improvements include authentication rate limiting and recovery, server-side pagination for larger datasets, application status history, and a clearly labeled frontend-only demo. These are future work, not shipped features. [Limitations and migration plan](docs/ARCHITECTURE.md#limitations-and-migrations).
+Signup requires 8 characters including uppercase, lowercase and a digit; login retains compatibility with existing passwords. Authentication endpoints have a bounded process-local throttle (10 requests per client IP per minute by default, adjustable with AUTH_RATE_LIMIT). Multiple workers require a shared limiter or gateway. GET /internships accepts limit, offset, search, status and sort, returning items and total metadata; the frontend requests eight rows at a time. Account-wide analytics use a separate aggregate endpoint. Recovery and status history remain future work. [Limitations and migration plan](docs/ARCHITECTURE.md#limitations-and-migrations).
 
 ## License
 
-No project-wide license has been selected. This repository does not currently grant an open-source license for the application. The bundled Manrope font has its own [SIL Open Font License](frontend/src/assets/fonts/OFL.txt); that license applies to the font, not the project.
+Original application code is available under the [MIT license](LICENSE). The bundled Manrope font has its own [SIL Open Font License](frontend/src/assets/fonts/OFL.txt); that license applies to the font, not the project.
